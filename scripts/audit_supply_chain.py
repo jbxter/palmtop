@@ -42,6 +42,7 @@ ALLOWLIST: set[str] = {
     "slack-bolt",
     "slack-sdk",
     "matrix-nio",
+    "slixmpp",
     "anthropic",
     "atlassian-python-api",
     "starlette",

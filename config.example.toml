@@ -63,7 +63,8 @@ accent_dim = "#c49a20"
 # Multi-channel mode — run multiple channels simultaneously:
 # channels = ["telegram", "sms", "email"]
 #
-# Supported: "telegram", "sms", "email", "discord", "slack", "matrix", "irc".
+# Supported: "telegram", "sms", "email", "discord", "slack", "matrix", "irc",
+#            "whatsapp", "xmpp", "scuttlebot".
 # All channels share the same AgentLoop (memory, tools, inference).
 # Defaults to sms on phone, telegram on dev if neither is set.
 # Telegram channel: uv sync --extra telegram  (bootstrap_termux.sh installs this)
@@ -142,6 +143,41 @@ n_threads = 4
 # password = ""                  # server password (optional)
 # use_ssl = true
 # allowed_users = []             # IRC nicks (case-insensitive)
+
+[whatsapp]
+# Official WhatsApp Business Cloud API.
+# Free tier: 1,000 service conversations/month.
+# Set env vars or fill values below:
+#   WHATSAPP_PHONE_NUMBER_ID, WHATSAPP_ACCESS_TOKEN, WHATSAPP_VERIFY_TOKEN
+# phone_number_id = ""
+# access_token = ""
+# verify_token = ""              # for webhook verification challenge
+# app_secret = ""                # optional — verifies webhook signatures
+# allowed_numbers = ["+1234567890"]
+# webhook_port = 8080
+# webhook_path = "/webhook/whatsapp"
+
+[xmpp]
+# XMPP/Jabber — works with Prosody, ejabberd, or any XMPP server.
+# Requires: uv sync --extra xmpp (installs slixmpp).
+# Set XMPP_JID and XMPP_PASSWORD env vars or fill below.
+# jid = "palmtop@your-server.org"
+# password = ""
+# allowed_jids = ["you@your-server.org"]
+# mucs = ["room@conference.your-server.org"]  # MUC rooms to join
+# muc_nick = "palmtop"
+
+[scuttlebot]
+# Multi-agent coordination via ScuttleBot IRC backplane.
+# See: https://github.com/ConflictHQ/scuttlebot
+# Zero extra dependencies — uses raw asyncio IRC protocol.
+# server = "localhost"
+# port = 6667
+# nick = "palmtop"
+# channels = ["#ops", "#engineering"]
+# password = ""
+# use_ssl = false
+# broadcast_tools = true         # stream tool calls to coordination channels
 
 [email]
 # AgentMail — gives the agent his own email inbox

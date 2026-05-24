@@ -18,6 +18,7 @@ telegram = ["python-telegram-bot>=22.0"]
 discord = ["discord.py>=2.3.0"]
 slack = ["slack-bolt>=1.18.0"]
 matrix = ["matrix-nio>=0.24.0"]
+xmpp = ["slixmpp>=1.8.0"]
 cloud = ["anthropic>=0.50.0"]
 atlassian = ["atlassian-python-api>=3.41.0"]
 web = ["starlette>=0.40.0", "uvicorn>=0.30.0"]
@@ -27,7 +28,7 @@ dev = [
     "pytest-asyncio>=0.24",
     "ruff>=0.8.0",
 ]
-all = ["palmtop[telegram,discord,slack,matrix,cloud,atlassian,web,observability]"]
+all = ["palmtop[telegram,discord,slack,matrix,xmpp,cloud,atlassian,web,observability]"]
 
 [project.scripts]
 palmtop = "palmtop.__main__:main"
@@ -56,6 +57,7 @@ ignore = ["E741", "N818"]
 "tests/test_discord_channel.py" = ["E402"]  # importorskip must precede import
 "tests/test_slack_channel.py" = ["E402"]  # importorskip must precede import
 "tests/test_matrix_channel.py" = ["E402"]  # importorskip must precede import
+"tests/test_xmpp_channel.py" = ["E402"]  # importorskip must precede import
 "tests/test_supply_chain_audit.py" = ["E402"]  # sys.path insert must precede import
 
 [tool.pytest.ini_options]

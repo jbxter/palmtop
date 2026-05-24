@@ -631,6 +631,58 @@ def main() -> None:
                     )
                     runner.add(irc_ch)
 
+            elif ch_name == "whatsapp":
+                from palmtop.channels.whatsapp import WhatsAppChannel
+
+                if not cfg.whatsapp.phone_number_id or not cfg.whatsapp.access_token:
+                    log.warning("WhatsApp channel enabled but credentials not set — skipped")
+                else:
+                    wa_ch = WhatsAppChannel(
+                        phone_number_id=cfg.whatsapp.phone_number_id,
+                        access_token=cfg.whatsapp.access_token,
+                        verify_token=cfg.whatsapp.verify_token,
+                        app_secret=cfg.whatsapp.app_secret,
+                        allowed_numbers=cfg.whatsapp.allowed_numbers or None,
+                        webhook_port=cfg.whatsapp.webhook_port,
+                        webhook_path=cfg.whatsapp.webhook_path,
+                    )
+                    runner.add(wa_ch)
+
+            elif ch_name == "xmpp":
+                try:
+                    from palmtop.channels.xmpp import XmppChannel
+                except ImportError:
+                    log.error("XMPP channel requires slixmpp: uv sync --extra xmpp")
+                else:
+                    if not cfg.xmpp.jid or not cfg.xmpp.password:
+                        log.warning("XMPP channel enabled but credentials not set — skipped")
+                    else:
+                        xmpp_ch = XmppChannel(
+                            jid=cfg.xmpp.jid,
+                            password=cfg.xmpp.password,
+                            allowed_jids=cfg.xmpp.allowed_jids or None,
+                            mucs=cfg.xmpp.mucs or None,
+                            muc_nick=cfg.xmpp.muc_nick,
+                        )
+                        runner.add(xmpp_ch)
+
+            elif ch_name == "scuttlebot":
+                from palmtop.channels.scuttlebot import ScuttleBotChannel
+
+                if not cfg.scuttlebot.server:
+                    log.warning("ScuttleBot channel enabled but server not set — skipped")
+                else:
+                    sb_ch = ScuttleBotChannel(
+                        server=cfg.scuttlebot.server,
+                        port=cfg.scuttlebot.port,
+                        nick=cfg.scuttlebot.nick,
+                        channels=cfg.scuttlebot.channels or None,
+                        password=cfg.scuttlebot.password,
+                        use_ssl=cfg.scuttlebot.use_ssl,
+                        broadcast_tools=cfg.scuttlebot.broadcast_tools,
+                    )
+                    runner.add(sb_ch)
+
             else:
                 log.warning("Channel '%s' not yet implemented — skipped", ch_name)
 

@@ -261,6 +261,37 @@ class IrcConfig:
     allowed_users: list[str] = field(default_factory=list)  # IRC nicks
 
 
+@dataclass
+class WhatsAppConfig:
+    phone_number_id: str = ""
+    access_token: str = ""
+    verify_token: str = ""
+    app_secret: str = ""  # for webhook signature verification
+    allowed_numbers: list[str] = field(default_factory=list)
+    webhook_port: int = 8080
+    webhook_path: str = "/webhook/whatsapp"
+
+
+@dataclass
+class XmppConfig:
+    jid: str = ""  # e.g. palmtop@your-server.org
+    password: str = ""
+    allowed_jids: list[str] = field(default_factory=list)  # e.g. you@server.org
+    mucs: list[str] = field(default_factory=list)  # MUC rooms to join
+    muc_nick: str = "palmtop"
+
+
+@dataclass
+class ScuttleBotConfig:
+    server: str = ""
+    port: int = 6667
+    nick: str = "palmtop"
+    channels: list[str] = field(default_factory=list)
+    password: str = ""
+    use_ssl: bool = False
+    broadcast_tools: bool = True  # broadcast tool calls to coordination channels
+
+
 def _default_channel() -> Channel:
     return "sms" if detect_runtime() == "phone" else "telegram"
 
@@ -280,6 +311,9 @@ class Config:
     slack: SlackConfig = field(default_factory=SlackConfig)
     matrix: MatrixConfig = field(default_factory=MatrixConfig)
     irc: IrcConfig = field(default_factory=IrcConfig)
+    whatsapp: WhatsAppConfig = field(default_factory=WhatsAppConfig)
+    xmpp: XmppConfig = field(default_factory=XmppConfig)
+    scuttlebot: ScuttleBotConfig = field(default_factory=ScuttleBotConfig)
     sms: SmsConfig = field(default_factory=SmsConfig)
     web: WebConfig = field(default_factory=WebConfig)
     atlassian: AtlassianConfig = field(default_factory=AtlassianConfig)
@@ -371,6 +405,18 @@ class Config:
                 for k, v in raw["irc"].items():
                     if hasattr(cfg.irc, k):
                         setattr(cfg.irc, k, v)
+            if "whatsapp" in raw:
+                for k, v in raw["whatsapp"].items():
+                    if hasattr(cfg.whatsapp, k):
+                        setattr(cfg.whatsapp, k, v)
+            if "xmpp" in raw:
+                for k, v in raw["xmpp"].items():
+                    if hasattr(cfg.xmpp, k):
+                        setattr(cfg.xmpp, k, v)
+            if "scuttlebot" in raw:
+                for k, v in raw["scuttlebot"].items():
+                    if hasattr(cfg.scuttlebot, k):
+                        setattr(cfg.scuttlebot, k, v)
             if "atlassian" in raw:
                 for k, v in raw["atlassian"].items():
                     if hasattr(cfg.atlassian, k):
@@ -472,6 +518,26 @@ class Config:
         matrix_token = os.environ.get("MATRIX_ACCESS_TOKEN", "")
         if matrix_token and not cfg.matrix.access_token:
             cfg.matrix.access_token = matrix_token
+
+        wa_phone_id = os.environ.get("WHATSAPP_PHONE_NUMBER_ID", "")
+        if wa_phone_id and not cfg.whatsapp.phone_number_id:
+            cfg.whatsapp.phone_number_id = wa_phone_id
+        wa_token = os.environ.get("WHATSAPP_ACCESS_TOKEN", "")
+        if wa_token and not cfg.whatsapp.access_token:
+            cfg.whatsapp.access_token = wa_token
+        wa_verify = os.environ.get("WHATSAPP_VERIFY_TOKEN", "")
+        if wa_verify and not cfg.whatsapp.verify_token:
+            cfg.whatsapp.verify_token = wa_verify
+        wa_secret = os.environ.get("WHATSAPP_APP_SECRET", "")
+        if wa_secret and not cfg.whatsapp.app_secret:
+            cfg.whatsapp.app_secret = wa_secret
+
+        xmpp_jid = os.environ.get("XMPP_JID", "")
+        if xmpp_jid and not cfg.xmpp.jid:
+            cfg.xmpp.jid = xmpp_jid
+        xmpp_password = os.environ.get("XMPP_PASSWORD", "")
+        if xmpp_password and not cfg.xmpp.password:
+            cfg.xmpp.password = xmpp_password
 
         model = os.environ.get("MODEL_PATH")
         if model:
