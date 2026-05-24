@@ -1,9 +1,11 @@
 # Persona and runtime
 config.toml
 .env
+.env.keys          # dotenvx decryption keys (NEVER commit — add to CI secrets)
 *.gguf
 models/
 data/
+# .env.vault is safe to commit (encrypted with AES-256-GCM)
 
 # Python
 __pycache__/

@@ -7,6 +7,9 @@ services:
     env_file:
       - path: .env
         required: false
+    environment:
+      # Pass DOTENV_KEY for encrypted secrets (from .env.keys or CI secret)
+      - DOTENV_KEY=${DOTENV_KEY:-}
     ports:
       - "8000:8000"
     restart: unless-stopped

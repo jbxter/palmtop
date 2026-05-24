@@ -59,13 +59,19 @@ class _SmsChannelAdapter:
 
 
 def _handle_subcommand() -> bool:
-    """Handle CLI subcommands (backup, restore, export, import). Returns True if handled."""
+    """Handle CLI subcommands (backup, restore, export, import, init). Returns True if handled."""
     if len(sys.argv) < 2:
         return False
 
     cmd = sys.argv[1]
-    if cmd not in ("backup", "restore", "export", "import"):
+    if cmd not in ("backup", "restore", "export", "import", "init"):
         return False
+
+    if cmd == "init":
+        from palmtop.secrets import init_secrets
+
+        init_secrets()
+        return True
 
     from palmtop.backup import create_backup, export_json, import_json, restore_backup
 

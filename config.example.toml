@@ -1,6 +1,8 @@
 # Palmtop configuration
 # Copy to config.toml and adjust for your setup.
-# Secrets (tokens, API keys) should use env vars, not this file.
+# Secrets (tokens, API keys) go in .env — encrypt with dotenvx:
+#   dotenvx encrypt && dotenvx run -- python -m palmtop
+# See .env.example for setup instructions.
 
 # ── Persona — your agent's identity ──────────────────────────────────
 # Everything here drives the system prompt, web presence, and email branding.

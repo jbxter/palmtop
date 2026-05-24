@@ -15,6 +15,7 @@ models/
 *.gguf
 .DS_Store
 .env
+.env.keys
 config.toml
 *.md
 !README.md
