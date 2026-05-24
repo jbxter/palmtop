@@ -54,9 +54,16 @@ accent_dim = "#c49a20"
 # url = "https://calendar.app.google/your-link"
 # desc = "Quick chat to discuss your project"
 
-# ── Channel ──────────────────────────────────────────────────────────
-# "sms" (Termux:API) or "telegram" — defaults to sms on phone, telegram on dev
+# ── Channels ─────────────────────────────────────────────────────────
+# Single channel (backward compat):
 # channel = "telegram"
+#
+# Multi-channel mode — run multiple channels simultaneously:
+# channels = ["telegram", "sms"]
+#
+# Supported: "telegram", "sms". More coming: discord, slack, matrix, email.
+# All channels share the same AgentLoop (memory, tools, inference).
+# Defaults to sms on phone, telegram on dev if neither is set.
 # Telegram channel: uv sync --extra telegram  (bootstrap_termux.sh installs this)
 
 [inference]

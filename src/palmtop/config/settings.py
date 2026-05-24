@@ -15,7 +15,7 @@ else:
 
 
 Runtime = Literal["dev", "phone"]
-Channel = Literal["telegram", "sms"]
+Channel = Literal["telegram", "sms", "discord", "slack", "matrix", "email", "signal", "irc", "xmpp"]
 
 
 def detect_runtime() -> Runtime:
@@ -224,6 +224,7 @@ def _default_channel() -> Channel:
 class Config:
     runtime: Runtime = field(default_factory=detect_runtime)
     channel: Channel = field(default_factory=_default_channel)
+    channels: list[Channel] = field(default_factory=list)  # multi-channel mode
     persona: PersonaConfig = field(default_factory=PersonaConfig)
     inference: InferenceConfig = field(default_factory=InferenceConfig)
     cloud_light: CloudTierConfig = field(default_factory=CloudTierConfig)
@@ -247,6 +248,13 @@ class Config:
     monitor: MonitorConfig = field(default_factory=MonitorConfig)
     timezone: str = "America/Los_Angeles"
     data_dir: Path = field(default_factory=lambda: Path("data"))
+
+    @property
+    def active_channels(self) -> list[Channel]:
+        """Effective channel list — uses 'channels' if set, else falls back to single 'channel'."""
+        if self.channels:
+            return self.channels
+        return [self.channel]
 
     @classmethod
     def load(cls, path: Path | None = None) -> Config:
@@ -360,6 +368,8 @@ class Config:
                 for k, v in raw["monitor"].items():
                     if hasattr(cfg.monitor, k):
                         setattr(cfg.monitor, k, v)
+            if "channels" in raw:
+                cfg.channels = raw["channels"]
             if "channel" in raw:
                 cfg.channel = raw["channel"]
             if "timezone" in raw:

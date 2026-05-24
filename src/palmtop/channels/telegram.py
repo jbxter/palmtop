@@ -566,11 +566,44 @@ class TelegramChannel:
             except Exception:
                 log.exception("Failed to send message to %s", user_id)
 
+    @property
+    def name(self) -> str:
+        """Channel identifier for the multi-channel runner."""
+        return "telegram"
+
+    async def start(self, loop: AgentLoop) -> None:
+        """Start Telegram polling as part of a multi-channel runner.
+
+        This uses the lower-level async API so the event loop is shared
+        with other channels. Blocks until stop() is called.
+        """
+        log.info("Starting Telegram polling (multi-channel mode)...")
+        await self._app.initialize()
+        await self._app.start()
+        await self._app.updater.start_polling(drop_pending_updates=True)
+        self._stop_event = asyncio.Event()
+        await self._stop_event.wait()
+
+    async def stop(self) -> None:
+        """Stop Telegram polling and shut down cleanly."""
+        log.info("Stopping Telegram channel...")
+        if hasattr(self, "_stop_event"):
+            self._stop_event.set()
+        try:
+            if self._app.updater and self._app.updater.running:
+                await self._app.updater.stop()
+            if self._app.running:
+                await self._app.stop()
+            await self._app.shutdown()
+        except Exception:
+            log.debug("Telegram shutdown error (non-fatal)", exc_info=True)
+
     def run(
         self,
         on_start: Callable[[], None] | None = None,
         async_init: Callable[[], asyncio.coroutines] | None = None,
     ) -> None:
+        """Run in single-channel mode (owns the event loop). Backward compat."""
         log.info("Starting Telegram polling...")
         if on_start or async_init:
 

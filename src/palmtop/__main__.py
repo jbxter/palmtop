@@ -32,6 +32,32 @@ def _make_cloud(tier: CloudTierConfig, label: str, log):
     return backend
 
 
+class _SmsChannelAdapter:
+    """Wraps SmsListener to conform to the Channel protocol for the runner."""
+
+    def __init__(self, listener) -> None:
+        self._listener = listener
+
+    @property
+    def name(self) -> str:
+        return "sms"
+
+    async def start(self, loop) -> None:
+        """Start SMS polling — blocks until cancelled."""
+        self._listener.start()
+        # Block until cancelled (the listener runs as a background task)
+        await asyncio.Event().wait()
+
+    async def stop(self) -> None:
+        if self._listener._task and not self._listener._task.done():
+            self._listener._task.cancel()
+
+    async def send_message(self, user_id: str, text: str) -> None:
+        # user_id for SMS is the phone number
+        number = user_id.removeprefix("sms:")
+        await self._listener.send(number, text)
+
+
 def main() -> None:
     logging.basicConfig(
         level=logging.INFO,
@@ -410,6 +436,115 @@ def main() -> None:
 
         log.info("Async startup complete — all stores initialized")
 
+    # ── Multi-channel mode ───────────────────────────────────────────
+    # When `channels = ["telegram", "sms"]` is set in config, use the
+    # concurrent runner instead of the single-channel path below.
+    if cfg.channels:
+        from palmtop.channels.runner import ChannelRunner
+
+        runner = ChannelRunner(agent)
+
+        for ch_name in cfg.active_channels:
+            if ch_name == "telegram":
+                try:
+                    from palmtop.channels.telegram import TelegramChannel
+                except ImportError:
+                    log.error("Telegram channel requires python-telegram-bot.")
+                    raise SystemExit(1) from None
+
+                stt, tts = None, None
+                if cfg.voice.enabled:
+                    from palmtop.voice.stt import create_stt
+
+                    stt = create_stt(cfg.voice)
+                    if cfg.voice.tts_enabled:
+                        from palmtop.voice.tts import create_tts
+
+                        tts = create_tts(cfg.voice)
+
+                tg = TelegramChannel(
+                    cfg.telegram.bot_token,
+                    agent,
+                    allowed_users=cfg.telegram.allowed_users or None,
+                    stt=stt,
+                    tts=tts,
+                    data_dir=cfg.data_dir,
+                    blessing_gate=blessing_gate,
+                )
+                runner.add(tg)
+
+                # Wire notifications through primary channel (first Telegram wins)
+                if not hasattr(agent, "_send_fn") or agent._send_fn is None:
+                    reminders.set_notify(tg.send_message)
+                    agent._send_fn = tg.send_message
+                    if cursor_manager:
+                        cursor_manager.set_notify(tg.send_message)
+                    if vercel_tool:
+                        vercel_tool.set_notify(tg.send_message)
+                    if railway_tool:
+                        railway_tool.set_notify(tg.send_message)
+
+            elif ch_name == "sms":
+                from palmtop.channels.sms_listener import SmsListener
+
+                primary_send = getattr(agent, "_send_fn", None)
+                sms = SmsListener(
+                    agent,
+                    allowed_numbers=cfg.sms.allowed_numbers,
+                    allowed_sender_names=cfg.sms.allowed_sender_names,
+                    telegram_send_fn=primary_send,
+                )
+                # SmsListener.start() is called from on_start (needs event loop)
+                runner.add(_SmsChannelAdapter(sms))
+
+            else:
+                log.warning("Channel '%s' not yet implemented — skipped", ch_name)
+
+        def _on_start_multi():
+            if sovereign:
+                try:
+                    ctx = sovereign.context
+                    if ctx is not None:
+                        ctx._loop = asyncio.get_running_loop()
+                except Exception:
+                    pass
+            reminders.start_background_check()
+            log.info("Multi-channel runner started: %s", ", ".join(cfg.active_channels))
+
+        async def _shutdown_multi():
+            log.info("Shutting down — closing resources...")
+            close_tasks = [tools.close()]
+            if conv_memory:
+                close_tasks.append(conv_memory.close())
+            if structured_memory:
+                close_tasks.append(structured_memory.close())
+            if plan_memory:
+                close_tasks.append(plan_memory.close())
+            if kb:
+                close_tasks.append(kb.close())
+            if light:
+                close_tasks.append(light.close())
+            if heavy:
+                close_tasks.append(heavy.close())
+            if cursor_manager:
+                close_tasks.append(cursor_manager.close())
+            for task in close_tasks:
+                try:
+                    await task
+                except Exception:
+                    log.debug("Cleanup error (non-fatal)", exc_info=True)
+            log.info("Shutdown complete")
+
+        asyncio.run(
+            runner.run(
+                async_init=_async_startup,
+                on_start=_on_start_multi,
+                on_shutdown=_shutdown_multi,
+            )
+        )
+        return
+
+    # ── Single-channel mode (backward compat) ────���───────────────────
     if cfg.channel == "sms":
         from palmtop.channels.sms import SmsChannel
 
