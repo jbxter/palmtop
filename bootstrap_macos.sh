@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Bootstrap Pocket Agent dev environment on macOS (Apple Silicon)
+# Bootstrap Palmtop dev environment on macOS (Apple Silicon)
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$SCRIPT_DIR"
@@ -10,7 +10,7 @@ MODEL_DIR="models"
 MODEL_NAME="phi-3.5-mini-instruct-q4_k_m.gguf"
 MODEL_URL="https://huggingface.co/bartowski/Phi-3.5-mini-instruct-GGUF/resolve/main/Phi-3.5-mini-instruct-Q4_K_M.gguf"
 
-echo "=== Pocket Agent macOS bootstrap ==="
+echo "=== Palmtop macOS bootstrap ==="
 
 # ── Check prerequisites ──────────────────────────────────────────────
 command -v uv >/dev/null 2>&1 || {
@@ -51,6 +51,6 @@ echo "Next steps:"
 echo "  1. Set your Telegram bot token:"
 echo "     export TELEGRAM_BOT_TOKEN='your-token-here'"
 echo "  2. Run the agent:"
-echo "     uv run python -m pocket_agent"
+echo "     uv run python -m palmtop"
 echo ""
 echo "To get a bot token, talk to @BotFather on Telegram."

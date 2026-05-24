@@ -12,7 +12,7 @@ echo "=== Deploying to $WORK_DIR ==="
 GIT_WORK_TREE="$WORK_DIR" git --git-dir="$GIT_DIR" checkout -f main
 
 cd "$WORK_DIR"
-pkill -f "pocket_agent" 2>/dev/null || true
+pkill -f "palmtop" 2>/dev/null || true
 sleep 1
 
 if [ -f .env ]; then
@@ -27,7 +27,7 @@ termux-wake-lock 2>/dev/null || true
 # Detach from the git-receive-pack / SSH session so `git push` exits promptly.
 # Without </dev/null and disown, the agent process can inherit fds 0–2 and hold
 # the push connection open after this hook prints "Agent restarted".
-nohup .venv/bin/python -m pocket_agent >>"$LOG" 2>&1 </dev/null &
+nohup .venv/bin/python -m palmtop >>"$LOG" 2>&1 </dev/null &
 agent_pid=$!
 disown "$agent_pid" 2>/dev/null || disown || true
 

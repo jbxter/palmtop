@@ -1,6 +1,6 @@
 """Tests for Telegram Markdown → HTML conversion."""
 
-from pocket_agent.channels.telegram import (
+from palmtop.channels.telegram import (
     md_to_telegram_html,
     prepare_telegram_message,
     sanitize_telegram_html,
@@ -43,7 +43,7 @@ def test_strip_unknown_tags():
 
 
 def test_split_safe_across_chunks():
-    from pocket_agent.channels.telegram import _split_message
+    from palmtop.channels.telegram import _split_message
 
     long = "word " * 900 + "**tail**"
     formatted = prepare_telegram_message(long)

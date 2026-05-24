@@ -3,20 +3,20 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Configuration &mdash; Pocket Agent</title>
-  <meta name="description" content="Full config.toml reference for Pocket Agent: persona, inference, channels, tools, and more.">
+  <title>Configuration &mdash; Palmtop</title>
+  <meta name="description" content="Full config.toml reference for Palmtop: persona, inference, channels, tools, and more.">
   <link rel="stylesheet" href="assets/style.css">
 </head>
 <body>
 
 <nav class="site-nav">
   <div class="container">
-    <a href="./" class="nav-brand">Pocket Agent</a>
+    <a href="./" class="nav-brand">Palmtop</a>
     <div class="nav-links">
       <a href="quickstart" class="nav-link">Quickstart</a>
       <a href="configuration" class="nav-link active">Config</a>
       <a href="architecture" class="nav-link">Architecture</a>
-      <a href="https://github.com/etnlbck/pocket-agent" target="_blank" rel="noopener" class="nav-cta">GitHub</a>
+      <a href="https://github.com/jbxter/palmtop" target="_blank" rel="noopener" class="nav-cta">GitHub</a>
     </div>
   </div>
 </nav>
@@ -198,7 +198,7 @@ poll_interval = 5</code></pre>
     <pre><code>[[mcp.servers]]
 name = "atlassian"
 description = "Jira and Confluence"
-command = ["python", "-m", "pocket_agent.mcp.atlassian_server"]
+command = ["python", "-m", "palmtop.mcp.atlassian_server"]
 
 [[mcp.servers]]
 name = "custom-kb"
@@ -253,7 +253,7 @@ tts_voice = "Kore"          # Gemini voices: Kore, Puck, Charon, etc.</code></pr
 </div>
 
 <footer class="site-footer">
-  <p>Pocket Agent &middot; MIT License &middot; <a href="https://github.com/etnlbck/pocket-agent">GitHub</a></p>
+  <p>Palmtop &middot; MIT License &middot; <a href="https://github.com/jbxter/palmtop">GitHub</a></p>
 </footer>
 
 </body>

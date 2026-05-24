@@ -6,8 +6,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from pocket_agent.config.settings import RailwayConfig
-from pocket_agent.tools.railway import RailwayDeployTool
+from palmtop.config.settings import RailwayConfig
+from palmtop.tools.railway import RailwayDeployTool
 
 
 @pytest.fixture
@@ -72,7 +72,7 @@ async def test_deploy_denied_when_blessing_rejected(cfg: RailwayConfig) -> None:
     tool.set_notify(AsyncMock())
 
     with patch(
-        "pocket_agent.tools.railway.request_deploy_blessing",
+        "palmtop.tools.railway.request_deploy_blessing",
         new_callable=AsyncMock,
         return_value=False,
     ):

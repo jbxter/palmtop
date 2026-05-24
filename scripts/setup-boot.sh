@@ -9,13 +9,13 @@ AGENT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 
 mkdir -p "$BOOT_DIR"
 
-cat > "$BOOT_DIR/start-pocket-agent" << EOF
+cat > "$BOOT_DIR/start-palmtop" << EOF
 #!/data/data/com.termux/files/usr/bin/bash
 sleep 10  # let the system settle after boot
 cd $AGENT_DIR
 exec bash start.sh
 EOF
 
-chmod +x "$BOOT_DIR/start-pocket-agent"
-echo "Boot script installed at $BOOT_DIR/start-pocket-agent"
+chmod +x "$BOOT_DIR/start-palmtop"
+echo "Boot script installed at $BOOT_DIR/start-palmtop"
 echo "Make sure Termux:Boot is installed and has been opened once."

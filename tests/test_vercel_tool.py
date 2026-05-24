@@ -6,8 +6,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from pocket_agent.config.settings import VercelConfig
-from pocket_agent.tools.vercel import VercelDeployTool
+from palmtop.config.settings import VercelConfig
+from palmtop.tools.vercel import VercelDeployTool
 
 
 @pytest.fixture
@@ -70,7 +70,7 @@ async def test_deploy_denied_when_blessing_rejected(cfg: VercelConfig) -> None:
     tool.set_notify(AsyncMock())
 
     with patch(
-        "pocket_agent.tools.vercel.request_deploy_blessing",
+        "palmtop.tools.vercel.request_deploy_blessing",
         new_callable=AsyncMock,
         return_value=False,
     ):

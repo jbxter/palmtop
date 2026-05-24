@@ -7,8 +7,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from pocket_agent.core.goal_aligner import ALIGN_THRESHOLD, GoalAligner
-from pocket_agent.core.goals_paths import goals_cache_path
+from palmtop.core.goal_aligner import ALIGN_THRESHOLD, GoalAligner
+from palmtop.core.goals_paths import goals_cache_path
 
 
 @pytest.fixture
@@ -19,7 +19,7 @@ def goals_file(tmp_path: Path) -> Path:
         "goals": [
             {"tag": "revenue", "title": "Grow consulting pipeline"},
             {"tag": "health", "title": "Train four times per week"},
-            {"tag": "product", "title": "Ship pocket-agent core engine"},
+            {"tag": "product", "title": "Ship palmtop core engine"},
         ],
     }
     p = tmp_path / "twy_goals.json"

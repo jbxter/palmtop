@@ -1,7 +1,7 @@
 #!/data/data/com.termux/files/usr/bin/bash
 set -euo pipefail
 
-# Bootstrap Pocket Agent on Android / Termux (Galaxy S21)
+# Bootstrap Palmtop on Android / Termux (Galaxy S21)
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$SCRIPT_DIR"
@@ -10,7 +10,7 @@ MODEL_DIR="models"
 MODEL_NAME="phi-3.5-mini-instruct-q4_k_m.gguf"
 MODEL_URL="https://huggingface.co/bartowski/Phi-3.5-mini-instruct-GGUF/resolve/main/Phi-3.5-mini-instruct-Q4_K_M.gguf"
 
-echo "=== Pocket Agent Termux bootstrap ==="
+echo "=== Palmtop Termux bootstrap ==="
 
 # ── System packages ──────────────────────────────────────────────────
 echo "Installing system packages..."
@@ -105,7 +105,7 @@ echo ""
 echo "=== Done ==="
 echo "Next steps:"
 echo "  1. Run the agent (SMS channel is the default on phone):"
-echo "     uv run python -m pocket_agent"
+echo "     uv run python -m palmtop"
 echo ""
 echo "To keep it running in the background, use termux-services or:"
-echo "  nohup uv run python -m pocket_agent > agent.log 2>&1 &"
+echo "  nohup uv run python -m palmtop > agent.log 2>&1 &"

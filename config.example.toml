@@ -1,4 +1,4 @@
-# Pocket Agent configuration
+# Palmtop configuration
 # Copy to config.toml and adjust for your setup.
 # Secrets (tokens, API keys) should use env vars, not this file.
 
@@ -7,7 +7,7 @@
 # Fill this in to make the agent yours.
 
 [persona]
-name = "Pocket Agent"
+name = "Palmtop"
 tagline = "Your AI-powered assistant"
 owner_name = "Your Name"              # the human behind the agent
 domain = ""                           # your website domain (e.g. "example.com")
@@ -109,18 +109,18 @@ n_threads = 4
 # If an MCP server fails, the agent falls back to built-in REST tools when available.
 #
 # Atlassian MCP (built-in, pure Python — no Rust/Node.js):
-#   pip install pocket-agent[atlassian]
+#   pip install palmtop[atlassian]
 # The [atlassian] config above auto-maps to the env vars the MCP server needs.
 #
 # [[mcp.servers]]
 # name = "atlassian"
 # description = "Jira and Confluence — search issues, manage tickets, read wiki pages"
-# command = ["python", "-m", "pocket_agent.mcp.atlassian_server"]
+# command = ["python", "-m", "palmtop.mcp.atlassian_server"]
 #
 # [[mcp.servers]]
 # name = "custom-kb"
 # description = "Custom knowledge base server"
-# command = ["python", "-m", "pocket_agent.mcp.server"]
+# command = ["python", "-m", "palmtop.mcp.server"]
 
 # 12 Week Year (12WY Reports on Railway) — built-in REST gateway, no extra deps.
 # Set env vars on the S21 (recommended) or fill [twelvewy] below:
@@ -161,7 +161,7 @@ use_semantic = true     # Ollama judges tasks that fail keyword match (localhost
 #   engine: draft poster copy        (Telegram or SMS)
 #   claude: draft poster copy        (alias)
 # Headless CLI (no interactive channel):
-#   POCKET_AUTONOMOUS=1 uv run python -m pocket_agent.engine --task "your task"
+#   PALMTOP_AUTONOMOUS=1 uv run python -m palmtop.engine --task "your task"
 
 [engine]
 enabled = true   # uses cloud backends (ANTHROPIC_API_KEY or GOOGLE_API_KEY)

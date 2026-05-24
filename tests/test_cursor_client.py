@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock
 import httpx
 import pytest
 
-from pocket_agent.cursor.client import CursorAgentsClient, CursorAPIError
+from palmtop.cursor.client import CursorAgentsClient, CursorAPIError
 
 
 @pytest.mark.asyncio

@@ -1,6 +1,6 @@
 # Julian delegation workflow (operator runbook)
 
-Julian (pocket-agent on the S21) can delegate work through three paths: **chat** (local + tools), **sovereign engine** (Claude/Gemini cloud orchestration), and **Cursor Cloud Agents** (repo VMs). Deploy tools add **Vercel** and **Railway** for shipping web apps.
+Julian (palmtop on the S21) can delegate work through three paths: **chat** (local + tools), **sovereign engine** (Claude/Gemini cloud orchestration), and **Cursor Cloud Agents** (repo VMs). Deploy tools add **Vercel** and **Railway** for shipping web apps.
 
 ## Quick reference
 
@@ -50,13 +50,13 @@ default_environment_id = "…"
 require_blessing = true
 ```
 
-Run: `uv sync --extra telegram` on the phone, then `uv run python -m pocket_agent`.
+Run: `uv sync --extra telegram` on the phone, then `uv run python -m palmtop`.
 
 ## Chat vs engine vs Cursor
 
 **Chat** — Default loop. Julian replies with local/cloud LLM, can emit `[TOOL:name] query`. Use for interactive Q&A, Jira lookups, reminders, file notes.
 
-**Engine** (`/engine`, `/claude`, `engine:`, `claude:`) — Runs `PocketAgent.orchestrate_result` in a worker thread: 12WY alignment, optional **blessing** (`/approve` / `/deny`), autonomous tool use. Use when you want Julian to *execute* a goal, not just advise.
+**Engine** (`/engine`, `/claude`, `engine:`, `claude:`) — Runs `PalmtopAgent.orchestrate_result` in a worker thread: 12WY alignment, optional **blessing** (`/approve` / `/deny`), autonomous tool use. Use when you want Julian to *execute* a goal, not just advise.
 
 **Cursor** (`/cursor`, `cursor:`, `[TOOL:cursor]`) — Starts a Cursor Cloud Agent on an **allowlisted** repo. Polls until finished; notifies on Telegram. Requires `CURSOR_API_KEY` and `[cursor] allowed_repos`. Blessing gate mirrors engine when `require_blessing = true`.
 

@@ -8,16 +8,16 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from pocket_agent.config.settings import CursorConfig
-from pocket_agent.core.loop import AgentLoop
-from pocket_agent.cursor.runner import (
+from palmtop.config.settings import CursorConfig
+from palmtop.core.loop import AgentLoop
+from palmtop.cursor.runner import (
     CursorJobManager,
     append_cursor_audit,
     parse_cursor_query,
     parse_cursor_task,
     repo_allowed,
 )
-from pocket_agent.tools.cursor_delegate import DelegateCursorTool
+from palmtop.tools.cursor_delegate import DelegateCursorTool
 
 
 def test_parse_cursor_task_prefixes() -> None:

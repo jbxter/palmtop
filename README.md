@@ -1,4 +1,4 @@
-# Pocket Agent
+# Palmtop
 
 A self-hosted AI agent platform that runs on a phone — or anywhere.
 
@@ -6,7 +6,7 @@ Built and battle-tested on a Galaxy S21 running Termux, deployed via Cloudflare 
 
 ## What is this?
 
-Pocket Agent is a production-grade personal AI agent with:
+Palmtop is a production-grade personal AI agent with:
 
 - **Cascading inference** — local llama.cpp model for routing, cloud LLMs (Anthropic, Google, OpenAI) for heavy lifting
 - **Multi-channel communication** — Telegram, SMS (via Termux:API), and web chat
@@ -57,8 +57,8 @@ Pocket Agent is a production-grade personal AI agent with:
 ### macOS / Linux (development)
 
 ```bash
-git clone https://github.com/etnlbck/pocket-agent.git
-cd pocket-agent
+git clone https://github.com/jbxter/palmtop.git
+cd palmtop
 bash bootstrap_macos.sh
 
 # Configure
@@ -70,7 +70,7 @@ export ANTHROPIC_API_KEY="sk-ant-..."
 export TELEGRAM_BOT_TOKEN="123456:ABC..."
 
 # Run
-uv run python -m pocket_agent
+uv run python -m palmtop
 ```
 
 ### Galaxy S21 / Android (Termux)
@@ -78,8 +78,8 @@ uv run python -m pocket_agent
 ```bash
 # Install Termux from F-Droid (not Play Store)
 pkg update && pkg install git
-git clone https://github.com/etnlbck/pocket-agent.git
-cd pocket-agent
+git clone https://github.com/jbxter/palmtop.git
+cd palmtop
 bash bootstrap_termux.sh
 # Follow the printed instructions
 ```
@@ -95,7 +95,7 @@ Once the agent is running on your phone, set it up as a git remote for zero-down
 bash scripts/setup-git-server.sh
 
 # On your laptop
-git remote add phone ssh://phone-ip:8022/path/to/pocket-agent.git
+git remote add phone ssh://phone-ip:8022/path/to/palmtop.git
 git push phone main
 # → auto-pulls, restarts agent, restarts tunnel
 ```
@@ -204,7 +204,7 @@ Telegram voice messages are automatically transcribed (Gemini, Whisper, or OpenA
 ## Project structure
 
 ```
-src/pocket_agent/
+src/palmtop/
 ├── __main__.py          # Entry point — wires everything
 ├── persona.py           # Persona config → system prompts
 ├── brand.py             # HTML email template (persona-driven)

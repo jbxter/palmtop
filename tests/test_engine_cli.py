@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 from unittest.mock import patch
 
-from pocket_agent.engine.__main__ import _append_audit, main
+from palmtop.engine.__main__ import _append_audit, main
 
 
 def test_audit_log_append(tmp_path: Path) -> None:
@@ -28,7 +28,7 @@ def test_cli_autonomous_blocked(tmp_path: Path, monkeypatch) -> None:
         def generate(self, task: str, alignment=None) -> str:
             return "should not run"
 
-    from pocket_agent.core.orchestration import OrchestrationResult
+    from palmtop.core.orchestration import OrchestrationResult
 
     class StubAgent:
         def orchestrate_result(self, task: str, **kwargs) -> OrchestrationResult:
@@ -37,7 +37,7 @@ def test_cli_autonomous_blocked(tmp_path: Path, monkeypatch) -> None:
                 blocked_reason="BLOCKED: misaligned",
             )
 
-    monkeypatch.setattr("pocket_agent.engine.__main__.PocketAgent", lambda **kw: StubAgent())
-    with patch("pocket_agent.engine.__main__.resolve_goals_path", return_value=goals):
+    monkeypatch.setattr("palmtop.engine.__main__.PalmtopAgent", lambda **kw: StubAgent())
+    with patch("palmtop.engine.__main__.resolve_goals_path", return_value=goals):
         code = main(["--task", "weather", "--autonomous", "--config", str(tmp_path / "nope.toml")])
     assert code == 1

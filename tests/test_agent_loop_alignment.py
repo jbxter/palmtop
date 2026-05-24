@@ -7,9 +7,9 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from pocket_agent.core.goal_aligner import GoalAligner
-from pocket_agent.core.loop import AgentLoop
-from pocket_agent.core.tracing import Tracer
+from palmtop.core.goal_aligner import GoalAligner
+from palmtop.core.loop import AgentLoop
+from palmtop.core.tracing import Tracer
 
 
 @pytest.fixture

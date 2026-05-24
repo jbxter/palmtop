@@ -1,7 +1,7 @@
 #!/data/data/com.termux/files/usr/bin/bash
 set -euo pipefail
 
-# Set up S21 as a git server for pocket-agent.
+# Set up S21 as a git server for palmtop.
 # Run this on the S21 via Termux.
 #
 # After setup, add the remote on your Mac:

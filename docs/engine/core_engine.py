@@ -2,16 +2,16 @@
 """Composer entry point — sovereign engine (package-backed).
 
 This file does NOT contain stub logic. Implementation lives in:
-  - pocket_agent.core.engine.PocketAgent      (align → gate → execute)
-  - pocket_agent.inference.engine_llm          (cloud LLM adapter)
-  - pocket_agent.core.goal_aligner.GoalAligner (heuristic + semantic judge)
-  - pocket_agent.core.alignment_judge          (LLM-based alignment)
+  - palmtop.core.engine.PalmtopAgent      (align → gate → execute)
+  - palmtop.inference.engine_llm          (cloud LLM adapter)
+  - palmtop.core.goal_aligner.GoalAligner (heuristic + semantic judge)
+  - palmtop.core.alignment_judge          (LLM-based alignment)
 
 Run REPL:
   uv run python docs/engine/core_engine.py
 
 Run headless (no stdin, blocks misaligned tasks):
-  POCKET_AUTONOMOUS=1 uv run python -m pocket_agent.engine --task "your task"
+  PALMTOP_AUTONOMOUS=1 uv run python -m palmtop.engine --task "your task"
 
 Verify imports:
   uv run python docs/engine/core_engine.py --verify
@@ -24,11 +24,11 @@ from pathlib import Path
 _ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(_ROOT / "src"))
 
-from pocket_agent.core.engine import PocketAgent  # noqa: E402
-from pocket_agent.core.goal_aligner import GoalAligner  # noqa: E402
-from pocket_agent.core.goals_paths import resolve_goals_path  # noqa: E402
+from palmtop.core.engine import PalmtopAgent  # noqa: E402
+from palmtop.core.goal_aligner import GoalAligner  # noqa: E402
+from palmtop.core.goals_paths import resolve_goals_path  # noqa: E402
 
-__all__ = ["PocketAgent", "GoalAligner", "DEFAULT_GOALS", "verify_engine"]
+__all__ = ["PalmtopAgent", "GoalAligner", "DEFAULT_GOALS", "verify_engine"]
 
 DEFAULT_GOALS = resolve_goals_path(project_root=_ROOT)
 
@@ -36,14 +36,14 @@ DEFAULT_GOALS = resolve_goals_path(project_root=_ROOT)
 def verify_engine() -> bool:
     """Quick contract check — run before trusting autonomy."""
     ok = True
-    src = (_ROOT / "src/pocket_agent/core/engine.py").read_text(encoding="utf-8")
+    src = (_ROOT / "src/palmtop/core/engine.py").read_text(encoding="utf-8")
     if 'return f"Executing:' in src or 'return "Executing:' in src:
         print("FAIL: engine.py still returns stub Executing placeholder")
         ok = False
     if "any(g['tag']" in src or "tag'] in task" in src:
         print("FAIL: engine.py still uses brittle tag substring matching")
         ok = False
-    aligner_src = (_ROOT / "src/pocket_agent/core/goal_aligner.py").read_text(encoding="utf-8")
+    aligner_src = (_ROOT / "src/palmtop/core/goal_aligner.py").read_text(encoding="utf-8")
     if "json.JSONDecodeError" not in aligner_src:
         print("FAIL: goal_aligner.py missing JSON error handling")
         ok = False
@@ -65,10 +65,10 @@ def main() -> None:
         goals = Path(args[0])
 
     # Need a cloud backend to run the REPL
-    from pocket_agent.config.settings import Config
+    from palmtop.config.settings import Config
     cfg = Config.load(Path("config.toml") if Path("config.toml").exists() else None)
-    from pocket_agent.inference.cloud import create_cloud_backend
-    from pocket_agent.inference.engine_llm import CloudLLMAdapter
+    from palmtop.inference.cloud import create_cloud_backend
+    from palmtop.inference.engine_llm import CloudLLMAdapter
 
     backend = None
     if cfg.cloud_heavy.api_key:
@@ -83,7 +83,7 @@ def main() -> None:
         print("No cloud API keys configured — set ANTHROPIC_API_KEY or GOOGLE_API_KEY")
         raise SystemExit(1)
 
-    agent = PocketAgent(goals_path=goals, llm=CloudLLMAdapter(backend), project_root=_ROOT)
+    agent = PalmtopAgent(goals_path=goals, llm=CloudLLMAdapter(backend), project_root=_ROOT)
     agent.run_loop()
 
 

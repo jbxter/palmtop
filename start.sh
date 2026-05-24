@@ -15,9 +15,9 @@ fi
 termux-wake-lock
 
 # Kill any existing instance
-pkill -f "pocket_agent" 2>/dev/null || true
+pkill -f "palmtop" 2>/dev/null || true
 sleep 1
 
 # Start the agent
-nohup .venv/bin/python -m pocket_agent > agent.log 2>&1 &
+nohup .venv/bin/python -m palmtop > agent.log 2>&1 &
 echo "Agent started (PID $!). Logs: tail -f agent.log"

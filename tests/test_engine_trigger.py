@@ -7,9 +7,9 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from pocket_agent.core.loop import AgentLoop
-from pocket_agent.core.orchestration import OrchestrationResult
-from pocket_agent.core.sovereign_runner import parse_engine_task, run_sovereign_engine
+from palmtop.core.loop import AgentLoop
+from palmtop.core.orchestration import OrchestrationResult
+from palmtop.core.sovereign_runner import parse_engine_task, run_sovereign_engine
 
 
 def test_parse_engine_task_prefixes() -> None:

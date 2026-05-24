@@ -3,20 +3,20 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Quickstart &mdash; Pocket Agent</title>
-  <meta name="description" content="Get Pocket Agent running in under 15 minutes on macOS, Linux, or Android (Termux).">
+  <title>Quickstart &mdash; Palmtop</title>
+  <meta name="description" content="Get Palmtop running in under 15 minutes on macOS, Linux, or Android (Termux).">
   <link rel="stylesheet" href="assets/style.css">
 </head>
 <body>
 
 <nav class="site-nav">
   <div class="container">
-    <a href="./" class="nav-brand">Pocket Agent</a>
+    <a href="./" class="nav-brand">Palmtop</a>
     <div class="nav-links">
       <a href="quickstart" class="nav-link active">Quickstart</a>
       <a href="configuration" class="nav-link">Config</a>
       <a href="architecture" class="nav-link">Architecture</a>
-      <a href="https://github.com/etnlbck/pocket-agent" target="_blank" rel="noopener" class="nav-cta">GitHub</a>
+      <a href="https://github.com/jbxter/palmtop" target="_blank" rel="noopener" class="nav-cta">GitHub</a>
     </div>
   </div>
 </nav>
@@ -54,8 +54,8 @@
     <h2 id="macos-linux">macOS / Linux</h2>
 
     <p><span class="step">1</span> <strong>Clone and bootstrap</strong></p>
-    <pre><code>git clone https://github.com/etnlbck/pocket-agent.git
-cd pocket-agent
+    <pre><code>git clone https://github.com/jbxter/palmtop.git
+cd palmtop
 bash bootstrap_macos.sh</code></pre>
     <p>The bootstrap script installs uv and project dependencies. On macOS it uses Homebrew; on Linux it installs uv directly.</p>
 
@@ -68,7 +68,7 @@ bash bootstrap_macos.sh</code></pre>
 export TELEGRAM_BOT_TOKEN="123456:ABC..."</code></pre>
 
     <p><span class="step">4</span> <strong>Run</strong></p>
-    <pre><code>uv run python -m pocket_agent</code></pre>
+    <pre><code>uv run python -m palmtop</code></pre>
 
     <h2 id="android">Android (Termux)</h2>
 
@@ -78,8 +78,8 @@ export TELEGRAM_BOT_TOKEN="123456:ABC..."</code></pre>
 
     <p><span class="step">1</span> <strong>Clone and bootstrap</strong></p>
     <pre><code>pkg update && pkg install git
-git clone https://github.com/etnlbck/pocket-agent.git
-cd pocket-agent
+git clone https://github.com/jbxter/palmtop.git
+cd palmtop
 bash bootstrap_termux.sh</code></pre>
     <p>The bootstrap script installs Python, uv, llama.cpp with Vulkan GPU acceleration, and all dependencies. Takes about 10 minutes on a fresh Termux install.</p>
 
@@ -88,7 +88,7 @@ bash bootstrap_termux.sh</code></pre>
 # Edit config.toml with your settings
 export ANTHROPIC_API_KEY="sk-ant-..."
 export TELEGRAM_BOT_TOKEN="123456:ABC..."
-uv run python -m pocket_agent</code></pre>
+uv run python -m palmtop</code></pre>
 
     <h2 id="configure">Configure your persona</h2>
     <p>The <code>[persona]</code> section in <code>config.toml</code> drives everything &mdash; system prompts, web presence, email branding:</p>
@@ -132,13 +132,13 @@ services = [
 
 # Login and create a tunnel
 cloudflared tunnel login
-cloudflared tunnel create pocket-agent
+cloudflared tunnel create palmtop
 
 # Route your domain
-cloudflared tunnel route dns pocket-agent yourdomain.com
+cloudflared tunnel route dns palmtop yourdomain.com
 
 # Run the tunnel
-cloudflared tunnel run pocket-agent</code></pre>
+cloudflared tunnel run palmtop</code></pre>
 
     <h2 id="git-push-deploy">Git-push deploy</h2>
     <p>Once the agent is running on your phone, set it up as a git remote for zero-downtime deploys from your laptop:</p>
@@ -146,7 +146,7 @@ cloudflared tunnel run pocket-agent</code></pre>
 bash scripts/setup-git-server.sh
 
 # On your laptop
-git remote add phone ssh://phone-ip:8022/path/to/pocket-agent.git
+git remote add phone ssh://phone-ip:8022/path/to/palmtop.git
 git push phone main
 # Auto-pulls, restarts agent, reconnects tunnel</code></pre>
     <p>The post-receive hook handles everything. See <code>scripts/git-post-receive.sh</code> for details.</p>
@@ -160,7 +160,7 @@ git push phone main
 </div>
 
 <footer class="site-footer">
-  <p>Pocket Agent &middot; MIT License &middot; <a href="https://github.com/etnlbck/pocket-agent">GitHub</a></p>
+  <p>Palmtop &middot; MIT License &middot; <a href="https://github.com/jbxter/palmtop">GitHub</a></p>
 </footer>
 
 </body>

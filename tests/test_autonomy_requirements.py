@@ -7,8 +7,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from pocket_agent.core.engine import PocketAgent
-from pocket_agent.core.goal_aligner import GoalAligner
+from palmtop.core.engine import PalmtopAgent
+from palmtop.core.goal_aligner import GoalAligner
 
 
 class FakeLLM:
@@ -30,7 +30,7 @@ def test_gap1_never_returns_executing_stub(tmp_path: Path) -> None:
         encoding="utf-8",
     )
 
-    out = PocketAgent(
+    out = PalmtopAgent(
         goals_path=goals,
         llm=FakeLLM(),
         aligner=GoalAligner(goals, use_semantic=False),
@@ -50,7 +50,7 @@ def test_gap1_blocks_misaligned_without_llm(tmp_path: Path) -> None:
     llm.generate = MagicMock(side_effect=AssertionError("LLM must not run"))
     llm.health = MagicMock(return_value=True)
 
-    result = PocketAgent(
+    result = PalmtopAgent(
         goals_path=goals,
         llm=llm,
         aligner=GoalAligner(goals, use_semantic=False),
@@ -62,9 +62,9 @@ def test_gap1_blocks_misaligned_without_llm(tmp_path: Path) -> None:
 
 
 def test_gap2_requires_llm_provider() -> None:
-    """② PocketAgent must require an explicit LLM provider."""
+    """② PalmtopAgent must require an explicit LLM provider."""
     with pytest.raises(ValueError, match="requires an LLM provider"):
-        PocketAgent(goals_path=Path("/nonexistent/goals.json"))
+        PalmtopAgent(goals_path=Path("/nonexistent/goals.json"))
 
 
 def test_gap3_semantic_not_tag_substring_only(tmp_path: Path) -> None:
