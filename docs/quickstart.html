@@ -140,20 +140,73 @@ uv sync --extra all        # everything</code></pre>
     <p>IRC, SMS, ScuttleBot, email, and WhatsApp have zero extra dependencies.</p>
 
     <h2 id="cloudflare-tunnel">Expose with Cloudflare Tunnel</h2>
-    <p>To make the web channel accessible from the internet:</p>
+    <p>Cloudflare Tunnel gives your agent a public URL without port forwarding, static IPs, or exposing your network. Required for the web channel, WhatsApp webhooks, and any service that needs inbound HTTP.</p>
+
+    <h3>Automated setup (recommended)</h3>
+    <p>The setup script handles installation, authentication, DNS routing, config generation, and auto-start &mdash; on Termux, macOS, or Linux:</p>
+    <pre><code># Basic setup
+bash scripts/setup-tunnel.sh --domain yourdomain.com
+
+# With a separate webhook subdomain (for WhatsApp/Slack)
+bash scripts/setup-tunnel.sh --domain yourdomain.com --webhook-port 8080
+
+# Custom tunnel name and port
+bash scripts/setup-tunnel.sh --domain yourdomain.com --name my-agent --port 8000</code></pre>
+
+    <p>The script will:</p>
+    <ol>
+      <li>Install <code>cloudflared</code> (pkg/brew/apt as appropriate)</li>
+      <li>Open a browser for Cloudflare authentication</li>
+      <li>Create a named tunnel and configure DNS routing</li>
+      <li>Generate <code>~/.cloudflared/config.yml</code></li>
+      <li>Set up auto-start (Termux:Boot / launchd / systemd)</li>
+    </ol>
+
+    <h3>Manual setup</h3>
+    <p>If you prefer to do it step by step:</p>
     <pre><code># Install cloudflared
 # macOS: brew install cloudflared
 # Termux: pkg install cloudflared
+# Linux: sudo apt install cloudflared
 
-# Login and create a tunnel
+# Authenticate (opens browser)
 cloudflared tunnel login
+
+# Create a named tunnel
 cloudflared tunnel create palmtop
 
-# Route your domain
+# Route your domain to the tunnel
 cloudflared tunnel route dns palmtop yourdomain.com
 
 # Run the tunnel
 cloudflared tunnel run palmtop</code></pre>
+
+    <h3>Webhook routing</h3>
+    <p>Channels like WhatsApp need a public webhook URL. If your WhatsApp webhook runs on port 8080, add a subdomain route:</p>
+    <pre><code># Route webhook subdomain
+cloudflared tunnel route dns palmtop webhook.yourdomain.com</code></pre>
+    <p>Then configure <code>~/.cloudflared/config.yml</code> with multiple services:</p>
+    <pre><code>tunnel: &lt;tunnel-id&gt;
+credentials-file: ~/.cloudflared/&lt;tunnel-id&gt;.json
+
+ingress:
+  - hostname: webhook.yourdomain.com
+    service: http://localhost:8080
+  - hostname: yourdomain.com
+    service: http://localhost:8000
+  - service: http_status:404</code></pre>
+    <p>Set your WhatsApp webhook URL to <code>https://webhook.yourdomain.com/webhook/whatsapp</code> in the Meta Developer Console.</p>
+
+    <h3>Troubleshooting</h3>
+    <div class="callout">
+      <p><strong>Common issues:</strong></p>
+      <ul>
+        <li><strong>DNS not resolving:</strong> Allow 1-2 minutes for DNS propagation. Verify with <code>dig yourdomain.com</code>.</li>
+        <li><strong>502 Bad Gateway:</strong> The agent isn't running or is on a different port. Check that <code>[admin] port</code> in config.toml matches the tunnel config.</li>
+        <li><strong>Tunnel disconnects on phone:</strong> Ensure Termux has battery optimization disabled (Android Settings &rarr; Apps &rarr; Termux &rarr; Battery &rarr; Unrestricted).</li>
+        <li><strong>Auth expired:</strong> Re-run <code>cloudflared tunnel login</code> to refresh credentials.</li>
+      </ul>
+    </div>
 
     <h2 id="git-push-deploy">Git-push deploy</h2>
     <p>Once the agent is running on your phone, set it up as a git remote for zero-downtime deploys from your laptop:</p>
