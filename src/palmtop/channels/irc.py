@@ -71,13 +71,9 @@ class IrcChannel:
                 import ssl
 
                 ssl_ctx = ssl.create_default_context()
-                self._reader, self._writer = await asyncio.open_connection(
-                    self._server, self._port, ssl=ssl_ctx
-                )
+                self._reader, self._writer = await asyncio.open_connection(self._server, self._port, ssl=ssl_ctx)
             else:
-                self._reader, self._writer = await asyncio.open_connection(
-                    self._server, self._port
-                )
+                self._reader, self._writer = await asyncio.open_connection(self._server, self._port)
         except OSError as e:
             log.error("Failed to connect to IRC server: %s", e)
             return

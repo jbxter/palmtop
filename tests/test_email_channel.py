@@ -59,11 +59,7 @@ class TestResolveInbox:
         mock_client.get = AsyncMock(
             return_value=MagicMock(
                 status_code=200,
-                json=lambda: {
-                    "inboxes": [
-                        {"inbox_id": "inbox_resolved", "email_address": "bot@agentmail.to"}
-                    ]
-                },
+                json=lambda: {"inboxes": [{"inbox_id": "inbox_resolved", "email_address": "bot@agentmail.to"}]},
             )
         )
         channel._client = mock_client

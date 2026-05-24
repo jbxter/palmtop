@@ -165,9 +165,7 @@ class TestSendMessage:
 
         with patch("palmtop.channels.slack.AsyncWebClient") as mock_client_cls:
             mock_client = AsyncMock()
-            mock_client.conversations_open = AsyncMock(
-                return_value={"channel": {"id": "C123DM"}}
-            )
+            mock_client.conversations_open = AsyncMock(return_value={"channel": {"id": "C123DM"}})
             mock_client.chat_postMessage = AsyncMock()
             mock_client_cls.return_value = mock_client
 

@@ -282,14 +282,7 @@ def _format_email_for_agent(sender: str, subject: str, body: str) -> str:
     if len(body) > 4000:
         body = body[:4000] + "\n\n[... truncated]"
 
-    return (
-        f"[EMAIL from {sender}]\n"
-        f"Subject: {subject}\n"
-        f"---\n"
-        f"{body}\n"
-        f"---\n"
-        f"Please reply to this email."
-    )
+    return f"[EMAIL from {sender}]\nSubject: {subject}\n---\n{body}\n---\nPlease reply to this email."
 
 
 def _extract_subject(text: str) -> str:
