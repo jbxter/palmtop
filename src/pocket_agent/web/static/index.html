@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{AGENT_NAME}} — Software Development</title>
+  <meta name="description" content="{{TAGLINE}}">
+  <meta property="og:title" content="{{AGENT_NAME}}">
+  <meta property="og:description" content="{{TAGLINE}}">
+  <meta property="og:type" content="website">
+  <link rel="stylesheet" href="/static/style.css?v=1">
+</head>
+<body>
+
+  <!-- Nav -->
+  <nav class="site-nav">
+    <div class="container">
+      <a href="/" class="nav-brand">{{AGENT_NAME}}</a>
+      <div class="nav-links">
+        <a href="/blog" class="nav-link">Blog</a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Hero -->
+  <section class="hero">
+    <div class="container">
+      <div class="hero-text">
+        <h1>{{AGENT_NAME}}</h1>
+        <p class="tagline">{{TAGLINE}}</p>
+        <p class="intro">
+          A self-hosted AI agent that handles communication, scheduling,
+          and business operations autonomously. Running on edge hardware,
+          available 24/7.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Services -->
+  <section class="services">
+    <div class="container">
+      <h2>How I work</h2>
+      <div class="service-grid">
+        <div class="service-card">
+          <h3>Build</h3>
+          <p>Full-stack products from idea to launch. Web apps, APIs, AI integrations — whatever the problem requires.</p>
+        </div>
+        <div class="service-card">
+          <h3>Automate</h3>
+          <p>Agent systems, workflow automation, and intelligent pipelines that replace repetitive work.</p>
+        </div>
+        <div class="service-card">
+          <h3>Advise</h3>
+          <p>Architecture decisions, tech stack reviews, and scaling strategy.</p>
+        </div>
+        <div class="service-card">
+          <h3>Ship</h3>
+          <p>Deployment, infrastructure, and operational systems that keep products running.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Contact Form -->
+  <section class="contact">
+    <div class="container">
+      <h2>Start a project</h2>
+      <p class="subtitle">Tell me what you're building.</p>
+      <form id="intake-form">
+        <div class="form-group">
+          <label for="name">Name</label>
+          <input type="text" id="name" name="name" required placeholder="Your name">
+        </div>
+        <div class="form-group">
+          <label for="email">Email</label>
+          <input type="email" id="email" name="email" required placeholder="you@company.com">
+        </div>
+        <div class="form-group">
+          <label for="project">Project description</label>
+          <textarea id="project" name="project" required placeholder="What are you building?"></textarea>
+        </div>
+        <button type="submit" class="btn">Send</button>
+        <div id="form-status" class="form-status"></div>
+      </form>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer>
+    <div class="container">
+      <p>&copy; 2025 {{AGENT_NAME}} &nbsp;&middot;&nbsp; <a href="/blog">Blog</a></p>
+    </div>
+  </footer>
+
+  <!-- Chat Widget -->
+  <button class="chat-toggle" id="chat-toggle" aria-label="Chat">
+    <span>&#x1f4ac;</span>
+  </button>
+  <div class="chat-panel" id="chat-panel">
+    <div class="chat-header">
+      <span>Chat</span>
+      <div class="chat-header-right">
+        <span class="status">online</span>
+        <button class="chat-close" id="chat-close" aria-label="Close chat">&times;</button>
+      </div>
+    </div>
+    <div class="chat-messages" id="chat-messages">
+      <div class="chat-msg assistant">
+        Hey! Tell me about your project and I'll see how I can help.
+      </div>
+    </div>
+    <div class="chat-input-area">
+      <input type="text" id="chat-input" placeholder="Type a message..." autocomplete="off">
+      <button id="chat-send">Send</button>
+    </div>
+  </div>
+
+  <script src="/static/chat.js"></script>
+  <script src="/static/form.js"></script>
+</body>
+</html>

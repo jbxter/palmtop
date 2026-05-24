@@ -1,0 +1,31 @@
+# Persona and runtime
+config.toml
+.env
+*.gguf
+models/
+data/
+
+# Python
+__pycache__/
+*.py[cod]
+build/
+dist/
+wheels/
+*.egg-info
+.venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Claude Code
+.claude/
+
+# Lock file (optional — remove this line if you want to pin deps)
+# uv.lock

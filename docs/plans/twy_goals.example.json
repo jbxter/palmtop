@@ -1,0 +1,23 @@
+{
+  "vision": "Sovereign Creative Execution",
+  "week": 6,
+  "season_weeks": 12,
+  "goals": [
+    {
+      "tag": "revenue",
+      "title": "Grow consulting pipeline to 3 qualified leads per week"
+    },
+    {
+      "tag": "health",
+      "title": "Train four times per week and sleep 7+ hours"
+    },
+    {
+      "tag": "product",
+      "title": "Ship pocket-agent core engine and 12WY alignment gate"
+    },
+    {
+      "tag": "relationships",
+      "title": "One intentional outreach per week to key collaborators"
+    }
+  ]
+}

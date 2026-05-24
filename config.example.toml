@@ -1,0 +1,247 @@
+# Pocket Agent configuration
+# Copy to config.toml and adjust for your setup.
+# Secrets (tokens, API keys) should use env vars, not this file.
+
+# ── Persona — your agent's identity ──────────────────────────────────
+# Everything here drives the system prompt, web presence, and email branding.
+# Fill this in to make the agent yours.
+
+[persona]
+name = "Pocket Agent"
+tagline = "Your AI-powered assistant"
+owner_name = "Your Name"              # the human behind the agent
+domain = ""                           # your website domain (e.g. "example.com")
+booking_url = ""                      # Google Calendar booking link (optional)
+linkedin_url = ""                     # LinkedIn profile (optional)
+location = "San Francisco"
+timezone = "America/Los_Angeles"
+
+# Core personality (injected into system prompt)
+personality = """\
+You combine sharp analytical thinking with genuine warmth. You're equally \
+comfortable reviewing a term sheet, planning someone's week, or brainstorming \
+creative strategies. Casual but competent — like texting your most capable friend."""
+
+# What the agent helps with (injected into system prompt)
+capabilities = [
+    "Scheduling, prioritization, and time management",
+    "Business decisions and tradeoff analysis",
+    "Research and recommendations",
+    "Creative projects and logistics",
+]
+
+# What services you offer (for the web chat agent)
+services = [
+    "Full-stack web apps (Next.js, React, Python, Node)",
+    "AI/ML integrations and automation",
+    "API design and backend architecture",
+    "Technical consulting and architecture reviews",
+]
+
+# Brand colors (CSS variables for email template and website)
+[persona.brand]
+bg = "#0a0a0a"
+surface = "#141414"
+border = "#2a2a2a"
+text = "#e8e8e8"
+text_muted = "#888888"
+accent = "#f0c040"
+accent_dim = "#c49a20"
+
+# Booking links for outreach emails (optional — add as many as you want)
+# [[persona.booking]]
+# name = "Free Intro Call"
+# url = "https://calendar.app.google/your-link"
+# desc = "Quick chat to discuss your project"
+
+# ── Channel ──────────────────────────────────────────────────────────
+# "sms" (Termux:API) or "telegram" — defaults to sms on phone, telegram on dev
+# channel = "telegram"
+# Telegram channel: uv sync --extra telegram  (bootstrap_termux.sh installs this)
+
+[inference]
+model_path = "models/phi-3.5-mini-instruct-q4_k_m.gguf"
+n_ctx = 4096
+n_gpu_layers = -1   # -1 = offload all to GPU (Metal on Mac, Vulkan on phone)
+n_threads = 4
+
+# Cloud tiers — local model routes messages to the right tier automatically.
+# Set ANTHROPIC_API_KEY and/or GOOGLE_API_KEY env vars to enable.
+# With both keys: light defaults to Google (cheap), heavy to Anthropic (capable).
+
+[cloud.light]
+# provider = "google"                   # or "anthropic"
+# model = "gemini-2.5-flash"            # default for google
+# model = "claude-haiku-4-5-20251001"   # default for anthropic
+
+[cloud.heavy]
+# provider = "anthropic"                # or "google"
+# model = "claude-sonnet-4-5-20250514"  # default for anthropic
+# model = "gemini-2.5-pro"              # if using google for heavy
+
+[search]
+# Fallback chain: tries providers in order, DuckDuckGo is always the final fallback.
+# Multiple keys per provider rotate automatically. Set via env vars:
+#   BRAVE_API_KEYS="key1,key2,key3"   (2,000 free queries/month per key)
+#   SERPER_API_KEYS="key1,key2,key3"  (2,500 free queries/month per key)
+# Or list them here:
+# brave_keys = ["key1", "key2"]
+# serper_keys = ["key1", "key2"]
+# preferred_order = ["serper", "brave"]  # default: serper → brave → duckduckgo
+
+[telegram]
+# Set TELEGRAM_BOT_TOKEN env var instead of putting it here
+# bot_token = ""
+# allowed_users = []
+
+[email]
+# AgentMail — gives the agent his own email inbox
+# api_key = "am_..."           # or set AGENTMAIL_API_KEY env var
+# inbox_id = "inbox_..."       # optional — auto-detects first inbox if empty
+                                # or set AGENTMAIL_INBOX_ID env var
+
+[atlassian]
+# domain = "yourcompany.atlassian.net"
+# email = "you@example.com"
+# Or set ATLASSIAN_DOMAIN, ATLASSIAN_EMAIL, ATLASSIAN_API_TOKEN env vars
+
+# MCP servers — the agent connects as a client (lazy, on first tool use)
+# If an MCP server fails, the agent falls back to built-in REST tools when available.
+#
+# Atlassian MCP (built-in, pure Python — no Rust/Node.js):
+#   pip install pocket-agent[atlassian]
+# The [atlassian] config above auto-maps to the env vars the MCP server needs.
+#
+# [[mcp.servers]]
+# name = "atlassian"
+# description = "Jira and Confluence — search issues, manage tickets, read wiki pages"
+# command = ["python", "-m", "pocket_agent.mcp.atlassian_server"]
+#
+# [[mcp.servers]]
+# name = "custom-kb"
+# description = "Custom knowledge base server"
+# command = ["python", "-m", "pocket_agent.mcp.server"]
+
+# 12 Week Year (12WY Reports on Railway) — built-in REST gateway, no extra deps.
+# Set env vars on the S21 (recommended) or fill [twelvewy] below:
+#   TWELVEWY_API_BASE_URL  — Railway APP_URL (https://your-app.up.railway.app)
+#   TWELVEWY_API_KEY       — from: uv run python scripts/create_api_key.py (in 12wy repo)
+#
+# [twelvewy]
+# api_base_url = "https://your-app.up.railway.app"
+# api_key = "twy_..."              # prefer TWELVEWY_API_KEY env var
+
+[observability]
+# Trace every conversation turn, tool call, and LLM generation
+enabled = true
+backend = "sqlite"     # "sqlite" (zero deps, traces.db) or "langfuse" (cloud)
+# Langfuse needs: LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_BASE_URL
+
+[digest]
+enabled = true
+hour = 7          # 7:00 AM in your timezone
+minute = 0
+
+timezone = "America/Los_Angeles"
+data_dir = "data"
+
+# 12WY goal alignment — copy docs/plans/twy_goals.example.json to either:
+#   docs/plans/twy_goals.json          (core engine default)
+#   data/docs/plans/twy_goals.json     (telegram/sms agent via data_dir)
+# Each goal needs "tag" and "title"; hybrid heuristic + Ollama semantic judge.
+
+[alignment]
+mode = "soft"           # "soft" = warn and continue; "hard" = refuse misaligned tasks
+# goals_path = ""       # empty = auto-resolve docs/plans then data/docs/plans
+use_semantic = true     # Ollama judges tasks that fail keyword match (localhost:11434)
+
+# Sovereign engine — the agent can trigger it from chat:
+#   /engine draft poster copy        (Telegram)
+#   /claude draft poster copy        (Telegram alias — same as /engine)
+#   engine: draft poster copy        (Telegram or SMS)
+#   claude: draft poster copy        (alias)
+# Headless CLI (no interactive channel):
+#   POCKET_AUTONOMOUS=1 uv run python -m pocket_agent.engine --task "your task"
+
+[engine]
+enabled = true   # uses cloud backends (ANTHROPIC_API_KEY or GOOGLE_API_KEY)
+
+# Cursor Cloud Agents — the agent delegates repo work to Cursor VMs:
+#   /cursor fix the failing tests in src/utils.py     (Telegram)
+#   cursor: add README setup section                  (Telegram or SMS)
+#   [TOOL:cursor] refactor auth module                (from the reply)
+# Set CURSOR_API_KEY (user key from cursor.com/dashboard or team service account).
+#
+# [cursor]
+# enabled = true
+# allowed_repos = ["https://github.com/your-org/your-repo"]
+# default_repo = "https://github.com/your-org/your-repo"
+# default_branch = "main"
+# max_concurrent = 1
+# require_blessing = true   # Telegram /approve before launch
+# poll_interval_s = 30
+# timeout_s = 3600
+# auto_create_pr = true
+
+# Vercel — deploy linked Git projects (production or preview):
+#   [TOOL:vercel] deploy main
+#   [TOOL:vercel] status
+# Set VERCEL_TOKEN (vercel.com/account/tokens). Project IDs from dashboard → Settings.
+#
+# [vercel]
+# enabled = true
+# default_project_id = "prj_xxxxxxxx"
+# default_project_name = "my-app"   # optional fallback if id omitted
+# default_target = "production"   # or "preview"
+# default_branch = "main"
+# team_id = ""                    # optional Vercel team
+# require_blessing = true
+
+# Railway — redeploy a configured service (GraphQL API, no CLI on Termux):
+#   [TOOL:railway] deploy
+#   [TOOL:railway] deployments
+# Set RAILWAY_TOKEN (railway.app/account/tokens — prefer "No Team" token for API).
+# Copy project/service/environment IDs from the Railway dashboard URL or API.
+#
+# [railway]
+# enabled = true
+# default_project_id = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+# default_service_id = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+# default_environment_id = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+# require_blessing = true
+
+# --- Voice (Telegram voice messages → transcription → response) ---
+# Default: Gemini Flash transcribes audio using your existing GOOGLE_API_KEY.
+# If whisper.cpp + ffmpeg are installed, it auto-falls back to local STT offline.
+# No extra setup needed if you already have GOOGLE_API_KEY set.
+#
+# Optional local fallback: pkg install whisper-cpp ffmpeg
+# Model: wget -P models/ https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin
+[voice]
+enabled = false
+stt_provider = "gemini"             # "gemini" (default), "whisper_cpp" (local), "openai"
+stt_model_path = "models/ggml-base.en.bin"   # whisper.cpp fallback model
+# stt_api_key = ""                  # auto-filled from GOOGLE_API_KEY for gemini
+tts_enabled = false                 # voice replies via Gemini TTS
+tts_provider = "gemini"             # "gemini" (default) or "openai"
+tts_voice = "Kore"                  # Gemini voices: Kore, Puck, Charon, Fenrir, Aoede, Leda, Orus, Zephyr
+
+# --- SMS / RCS on the S21 (Termux:API, dual-channel with Telegram) ---
+[sms]
+enabled = false
+allowed_numbers = ["+15551234567"]       # SMS inbox filter
+allowed_sender_names = []     # RCS notification title filter
+poll_interval = 5
+
+# --- Proactive monitoring — the agent reaches out when something changes ---
+[monitor]
+enabled = true
+calendar_interval_minutes = 10      # how often to check for moved/new/cancelled events
+plans_interval_hours = 12           # how often to check for stale plans
+email_interval_minutes = 15         # how often to check for new emails
+jira_interval_minutes = 30          # how often to check for new Jira assignments
+stale_plan_days = 3                 # alert if a plan hasn't been updated in N days
+alert_cooldown_hours = 2            # don't repeat the same alert within N hours
+quiet_hours_start = 22              # 10 PM — hold alerts until morning
+quiet_hours_end = 7                 # 7 AM
+email_auto_reply = false            # auto-reply to threads the agent participated in
