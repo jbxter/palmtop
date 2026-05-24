@@ -1,6 +1,7 @@
 # Palmtop
 
 [![CI](https://github.com/jbxter/palmtop/actions/workflows/ci.yml/badge.svg)](https://github.com/jbxter/palmtop/actions/workflows/ci.yml)
+[![Palmtop - Self-hosted AI agent platform that runs on a phone | Product Hunt](https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1154398&theme=dark&t=1779595840074)](https://www.producthunt.com/products/pocket-agent-2?embed=true&utm_source=badge-featured&utm_medium=badge&utm_campaign=badge-pocket-agent-2)
 
 A self-hosted AI agent platform that runs on a phone — or anywhere.
 
