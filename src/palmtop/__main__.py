@@ -595,6 +595,25 @@ def main() -> None:
                     )
                     runner.add(slack_ch)
 
+            elif ch_name == "matrix":
+                try:
+                    from palmtop.channels.matrix import MatrixChannel
+                except ImportError:
+                    log.error("Matrix channel requires matrix-nio: uv sync --extra matrix")
+                    raise SystemExit(1) from None
+
+                if not cfg.matrix.homeserver or not cfg.matrix.access_token:
+                    log.warning("Matrix channel enabled but credentials not set — skipped")
+                else:
+                    matrix_ch = MatrixChannel(
+                        homeserver=cfg.matrix.homeserver,
+                        user_id=cfg.matrix.user_id,
+                        access_token=cfg.matrix.access_token,
+                        allowed_users=cfg.matrix.allowed_users or None,
+                        allowed_rooms=cfg.matrix.allowed_rooms or None,
+                    )
+                    runner.add(matrix_ch)
+
             else:
                 log.warning("Channel '%s' not yet implemented — skipped", ch_name)
 

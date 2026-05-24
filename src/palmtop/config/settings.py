@@ -241,6 +241,15 @@ class SlackConfig:
     allowed_users: list[str] = field(default_factory=list)  # Slack user IDs (strings)
 
 
+@dataclass
+class MatrixConfig:
+    homeserver: str = ""  # e.g. https://matrix.org or https://your.server
+    user_id: str = ""  # e.g. @bot:matrix.org
+    access_token: str = ""
+    allowed_users: list[str] = field(default_factory=list)  # @user:server format
+    allowed_rooms: list[str] = field(default_factory=list)  # !room_id:server format
+
+
 def _default_channel() -> Channel:
     return "sms" if detect_runtime() == "phone" else "telegram"
 
@@ -258,6 +267,7 @@ class Config:
     telegram: TelegramConfig = field(default_factory=TelegramConfig)
     discord: DiscordConfig = field(default_factory=DiscordConfig)
     slack: SlackConfig = field(default_factory=SlackConfig)
+    matrix: MatrixConfig = field(default_factory=MatrixConfig)
     sms: SmsConfig = field(default_factory=SmsConfig)
     web: WebConfig = field(default_factory=WebConfig)
     atlassian: AtlassianConfig = field(default_factory=AtlassianConfig)
@@ -341,6 +351,10 @@ class Config:
                 for k, v in raw["slack"].items():
                     if hasattr(cfg.slack, k):
                         setattr(cfg.slack, k, v)
+            if "matrix" in raw:
+                for k, v in raw["matrix"].items():
+                    if hasattr(cfg.matrix, k):
+                        setattr(cfg.matrix, k, v)
             if "atlassian" in raw:
                 for k, v in raw["atlassian"].items():
                     if hasattr(cfg.atlassian, k):
@@ -432,6 +446,16 @@ class Config:
         slack_app_token = os.environ.get("SLACK_APP_TOKEN", "")
         if slack_app_token and not cfg.slack.app_token:
             cfg.slack.app_token = slack_app_token
+
+        matrix_hs = os.environ.get("MATRIX_HOMESERVER", "")
+        if matrix_hs and not cfg.matrix.homeserver:
+            cfg.matrix.homeserver = matrix_hs
+        matrix_user = os.environ.get("MATRIX_USER_ID", "")
+        if matrix_user and not cfg.matrix.user_id:
+            cfg.matrix.user_id = matrix_user
+        matrix_token = os.environ.get("MATRIX_ACCESS_TOKEN", "")
+        if matrix_token and not cfg.matrix.access_token:
+            cfg.matrix.access_token = matrix_token
 
         model = os.environ.get("MODEL_PATH")
         if model:

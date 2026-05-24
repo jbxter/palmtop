@@ -63,7 +63,7 @@ accent_dim = "#c49a20"
 # Multi-channel mode — run multiple channels simultaneously:
 # channels = ["telegram", "sms", "email"]
 #
-# Supported: "telegram", "sms", "email", "discord", "slack". More coming: matrix.
+# Supported: "telegram", "sms", "email", "discord", "slack", "matrix".
 # All channels share the same AgentLoop (memory, tools, inference).
 # Defaults to sms on phone, telegram on dev if neither is set.
 # Telegram channel: uv sync --extra telegram  (bootstrap_termux.sh installs this)
@@ -123,6 +123,15 @@ n_threads = 4
 # bot_token = "xoxb-..."        # Bot User OAuth Token
 # app_token = "xapp-..."        # App-Level Token (Socket Mode)
 # allowed_users = []             # Slack user IDs (strings, e.g. "U12345ABC")
+
+[matrix]
+# Works with matrix.org and self-hosted homeservers (Synapse, Conduit, etc.)
+# Set MATRIX_HOMESERVER, MATRIX_USER_ID, MATRIX_ACCESS_TOKEN env vars.
+# homeserver = "https://matrix.org"
+# user_id = "@palmtop:matrix.org"
+# access_token = ""
+# allowed_users = []             # Matrix user IDs (e.g. "@alice:matrix.org")
+# allowed_rooms = []             # Room IDs (e.g. "!abc123:matrix.org")
 
 [email]
 # AgentMail — gives the agent his own email inbox
