@@ -1,0 +1,97 @@
+name: Bug Report
+description: Report a bug in Palmtop
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug! Please fill out the sections below.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear description of the bug.
+      placeholder: Tell us what you see vs. what you expected.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: How can we reproduce the issue?
+      placeholder: |
+        1. Start palmtop with `python -m palmtop`
+        2. Send message "..."
+        3. See error in logs
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What should have happened instead?
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs or error output
+      description: Paste any relevant log output or tracebacks.
+      render: shell
+
+  - type: dropdown
+    id: channel
+    attributes:
+      label: Channel
+      description: Which channel were you using?
+      options:
+        - Telegram
+        - SMS
+        - Discord
+        - Slack
+        - Email
+        - Other
+        - N/A
+
+  - type: input
+    id: version
+    attributes:
+      label: Palmtop version
+      description: Output of `python -m palmtop --version` or git commit hash.
+      placeholder: e.g. 0.1.0 or abc1234
+    validations:
+      required: true
+
+  - type: dropdown
+    id: deployment
+    attributes:
+      label: Deployment method
+      description: How are you running Palmtop?
+      options:
+        - Docker (docker compose)
+        - uv / pip (local)
+        - Termux (Android)
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      placeholder: e.g. Ubuntu 24.04, macOS 15, Android 14 (Termux)
+    validations:
+      required: true
+
+  - type: input
+    id: python-version
+    attributes:
+      label: Python version
+      placeholder: e.g. 3.12.4
+    validations:
+      required: true

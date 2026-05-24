@@ -1,0 +1,59 @@
+name: Feature Request
+description: Suggest a new feature or improvement for Palmtop
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting an improvement! We especially welcome new channel integrations, tool integrations, and performance improvements.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or motivation
+      description: What problem does this solve, or what workflow does it improve?
+      placeholder: "As a user, I want to ... so that ..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: How do you envision this working?
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Any other approaches you thought about?
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: Category
+      options:
+        - New channel integration
+        - New tool integration
+        - Core agent behavior
+        - Performance
+        - Developer experience
+        - Documentation
+        - Deployment / infrastructure
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: willing-to-implement
+    attributes:
+      label: Would you be willing to submit a PR?
+      options:
+        - "Yes"
+        - "Yes, with guidance"
+        - "No"
+    validations:
+      required: true
