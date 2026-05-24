@@ -58,7 +58,52 @@ class _SmsChannelAdapter:
         await self._listener.send(number, text)
 
 
+def _handle_subcommand() -> bool:
+    """Handle CLI subcommands (backup, restore, export, import). Returns True if handled."""
+    if len(sys.argv) < 2:
+        return False
+
+    cmd = sys.argv[1]
+    if cmd not in ("backup", "restore", "export", "import"):
+        return False
+
+    from palmtop.backup import create_backup, export_json, import_json, restore_backup
+
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
+
+    config_path = Path("config.toml")
+    cfg = Config.load(config_path)
+    data_dir = cfg.data_dir
+
+    if cmd == "backup":
+        output_dir = Path(sys.argv[2]) if len(sys.argv) > 2 else None
+        path = create_backup(data_dir, output_dir)
+        print(f"Backup created: {path}")
+    elif cmd == "restore":
+        if len(sys.argv) < 3:
+            print("Usage: palmtop restore <archive.tar.gz>")
+            raise SystemExit(1)
+        restored = restore_backup(Path(sys.argv[2]), data_dir)
+        print(f"Restored {len(restored)} databases: {', '.join(restored)}")
+    elif cmd == "export":
+        output = Path(sys.argv[2]) if len(sys.argv) > 2 else None
+        path = export_json(data_dir, output)
+        print(f"Exported to: {path}")
+    elif cmd == "import":
+        if len(sys.argv) < 3:
+            print("Usage: palmtop import <export.json>")
+            raise SystemExit(1)
+        counts = import_json(Path(sys.argv[2]), data_dir)
+        print(f"Imported: {counts}")
+
+    return True
+
+
 def main() -> None:
+    # Handle subcommands before full startup
+    if _handle_subcommand():
+        return
+
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(name)s %(levelname)s %(message)s",
