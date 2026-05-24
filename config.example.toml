@@ -61,9 +61,9 @@ accent_dim = "#c49a20"
 # channel = "telegram"
 #
 # Multi-channel mode — run multiple channels simultaneously:
-# channels = ["telegram", "sms"]
+# channels = ["telegram", "sms", "email"]
 #
-# Supported: "telegram", "sms". More coming: discord, slack, matrix, email.
+# Supported: "telegram", "sms", "email". More coming: discord, slack, matrix.
 # All channels share the same AgentLoop (memory, tools, inference).
 # Defaults to sms on phone, telegram on dev if neither is set.
 # Telegram channel: uv sync --extra telegram  (bootstrap_termux.sh installs this)
@@ -115,6 +115,10 @@ n_threads = 4
 # api_key = "am_..."           # or set AGENTMAIL_API_KEY env var
 # inbox_id = "inbox_..."       # optional — auto-detects first inbox if empty
                                 # or set AGENTMAIL_INBOX_ID env var
+# As a tool: the agent can read/send email at any time.
+# As a channel: add "email" to channels = [...] for inbound email routing.
+# poll_interval = 30            # seconds between inbox checks (channel mode)
+# allowed_senders = []          # empty = accept all; list = only these senders
 
 [atlassian]
 # domain = "yourcompany.atlassian.net"

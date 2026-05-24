@@ -548,6 +548,18 @@ def main() -> None:
                 # SmsListener.start() is called from on_start (needs event loop)
                 runner.add(_SmsChannelAdapter(sms))
 
+            elif ch_name == "email":
+                if not cfg.email.api_key:
+                    log.warning("Email channel enabled but AGENTMAIL_API_KEY not set — skipped")
+                else:
+                    from palmtop.channels.email import EmailChannel
+
+                    email_ch = EmailChannel(
+                        api_key=cfg.email.api_key,
+                        inbox_id=cfg.email.inbox_id,
+                    )
+                    runner.add(email_ch)
+
             else:
                 log.warning("Channel '%s' not yet implemented — skipped", ch_name)
 
