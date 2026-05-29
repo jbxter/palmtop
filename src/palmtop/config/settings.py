@@ -50,6 +50,8 @@ class AtlassianConfig:
 class EmailConfig:
     api_key: str = ""  # AgentMail API key
     inbox_id: str = ""  # default inbox (auto-detected if empty)
+    allowed_senders: list[str] = field(default_factory=list)  # exact addresses; empty = none
+    allow_anyone: bool = False  # accept mail from any sender (public inbox)
 
 
 @dataclass
@@ -234,7 +236,22 @@ class SmsConfig:
     allowed_numbers: list[str] = field(default_factory=list)  # e.g. ["+15551234567"]
     # RCS notifications show contact names, not numbers — match notification title
     allowed_sender_names: list[str] = field(default_factory=list)
+    allow_anyone: bool = False  # accept SMS/RCS from any number (fail-open opt-in)
     poll_interval: int = 5  # seconds
+
+
+@dataclass
+class AgentConfig:
+    """Identity of the agent's owner(s).
+
+    Owners are the only senders allowed to trigger the privileged engine: /
+    cursor: commands (autonomous tasks, cloud code execution). IDs are
+    channel-qualified, matching how channels identify senders, e.g.
+    "telegram:123456789", "sms:+15551234567", "slack:U0123". Empty = those
+    commands are refused on every channel (fail closed).
+    """
+
+    owners: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -251,12 +268,14 @@ class AdminConfig:
 class TelegramConfig:
     bot_token: str = ""
     allowed_users: list[int] = field(default_factory=list)
+    allow_anyone: bool = False  # accept messages from any Telegram user
 
 
 @dataclass
 class DiscordConfig:
     bot_token: str = ""
     allowed_users: list[int] = field(default_factory=list)
+    allow_anyone: bool = False  # accept messages from any Discord user
     guild_id: int = 0  # 0 = any guild
     channel_id: int = 0  # 0 = any channel (DMs always allowed)
 
@@ -266,6 +285,7 @@ class SlackConfig:
     bot_token: str = ""  # xoxb-...
     app_token: str = ""  # xapp-... (Socket Mode)
     allowed_users: list[str] = field(default_factory=list)  # Slack user IDs (strings)
+    allow_anyone: bool = False  # accept messages from any Slack user
 
 
 @dataclass
@@ -275,6 +295,7 @@ class MatrixConfig:
     access_token: str = ""
     allowed_users: list[str] = field(default_factory=list)  # @user:server format
     allowed_rooms: list[str] = field(default_factory=list)  # !room_id:server format
+    allow_anyone: bool = False  # accept messages from any Matrix user
 
 
 @dataclass
@@ -286,6 +307,7 @@ class IrcConfig:
     password: str = ""  # server password (optional)
     use_ssl: bool = False
     allowed_users: list[str] = field(default_factory=list)  # IRC nicks
+    allow_anyone: bool = False  # respond to any IRC nick
 
 
 @dataclass
@@ -295,6 +317,7 @@ class WhatsAppConfig:
     verify_token: str = ""
     app_secret: str = ""  # for webhook signature verification
     allowed_numbers: list[str] = field(default_factory=list)
+    allow_anyone: bool = False  # accept messages from any WhatsApp number
     webhook_port: int = 8080
     webhook_path: str = "/webhook/whatsapp"
 
@@ -304,6 +327,7 @@ class XmppConfig:
     jid: str = ""  # e.g. palmtop@your-server.org
     password: str = ""
     allowed_jids: list[str] = field(default_factory=list)  # e.g. you@server.org
+    allow_anyone: bool = False  # accept messages from any JID
     mucs: list[str] = field(default_factory=list)  # MUC rooms to join
     muc_nick: str = "palmtop"
 
@@ -328,6 +352,7 @@ class Config:
     runtime: Runtime = field(default_factory=detect_runtime)
     channel: Channel = field(default_factory=_default_channel)
     channels: list[Channel] = field(default_factory=list)  # multi-channel mode
+    agent: AgentConfig = field(default_factory=AgentConfig)
     admin: AdminConfig = field(default_factory=AdminConfig)
     persona: PersonaConfig = field(default_factory=PersonaConfig)
     inference: InferenceConfig = field(default_factory=InferenceConfig)
@@ -516,6 +541,10 @@ class Config:
                 for k, v in raw["admin"].items():
                     if hasattr(cfg.admin, k):
                         setattr(cfg.admin, k, v)
+            if "agent" in raw:
+                for k, v in raw["agent"].items():
+                    if hasattr(cfg.agent, k):
+                        setattr(cfg.agent, k, v)
             if "channels" in raw:
                 cfg.channels = raw["channels"]
             if "channel" in raw:

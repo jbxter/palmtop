@@ -16,6 +16,8 @@ from typing import TYPE_CHECKING
 
 import slixmpp
 
+from palmtop.channels.auth import log_access_policy, sender_allowed
+
 if TYPE_CHECKING:
     from palmtop.core.loop import AgentLoop
 
@@ -37,6 +39,7 @@ class XmppChannel:
         jid: str,
         password: str,
         allowed_jids: list[str] | None = None,
+        allow_anyone: bool = False,
         mucs: list[str] | None = None,
         muc_nick: str = "palmtop",
     ) -> None:
@@ -48,6 +51,8 @@ class XmppChannel:
         self._jid = jid
         self._password = password
         self._allowed_jids = {j.lower() for j in allowed_jids} if allowed_jids else None
+        self._allow_anyone = allow_anyone
+        log_access_policy(log, "xmpp", self._allowed_jids, allow_anyone=allow_anyone)
         self._mucs = mucs or []
         self._muc_nick = muc_nick
         self._agent: AgentLoop | None = None
@@ -129,8 +134,8 @@ class XmppChannel:
         if not text:
             return
 
-        # Check allowlist
-        if self._allowed_jids and sender_jid.lower() not in self._allowed_jids:
+        # Check allowlist (fail closed when unconfigured)
+        if not sender_allowed(sender_jid.lower(), self._allowed_jids, allow_anyone=self._allow_anyone):
             log.debug("XMPP message from non-allowed JID: %s", sender_jid)
             return
 
@@ -203,15 +208,17 @@ class XmppChannel:
         sender_nick = msg["mucnick"]
         room_jid = msg["from"].bare
 
-        # Check allowlist against nick (can't always resolve to bare JID in MUC)
-        if self._allowed_jids:
-            # Try to get real JID from MUC presence
+        # Authorize by the sender's real JID — the MUC nick is not identity.
+        # Fail closed: without an allow-list (and without allow_anyone) or if
+        # the real JID can't be resolved, refuse the message.
+        if not self._allow_anyone:
+            if not self._allowed_jids:
+                return
             try:
                 real_jid = self._client.plugin["xep_0045"].get_jid_property(room_jid, sender_nick, "jid")
-                if real_jid and real_jid.bare.lower() not in self._allowed_jids:
-                    return
             except Exception:
-                # If we can't resolve JID, skip for safety
+                return
+            if not real_jid or real_jid.bare.lower() not in self._allowed_jids:
                 return
 
         log.info("XMPP MUC mention from %s in %s: %s", sender_nick, room_jid, text[:80])

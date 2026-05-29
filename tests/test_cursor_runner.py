@@ -95,7 +95,7 @@ async def test_handle_routes_cursor_prefix(tmp_path: Path) -> None:
     backend = AsyncMock()
     cursor_mgr = MagicMock()
     cursor_mgr.launch = AsyncMock(return_value="Cursor cloud agent started")
-    loop = AgentLoop(backend, cursor_manager=cursor_mgr, data_dir=tmp_path)
+    loop = AgentLoop(backend, cursor_manager=cursor_mgr, data_dir=tmp_path, owner_ids={"u1"})
     reply = await loop.handle("cursor: fix tests", user_id="u1")
     assert "started" in reply
     cursor_mgr.launch.assert_called_once()

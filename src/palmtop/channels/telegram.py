@@ -14,6 +14,8 @@ from telegram.constants import ChatAction, ParseMode
 from telegram.error import Forbidden, TimedOut
 from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
 
+from palmtop.channels.auth import log_access_policy, sender_allowed
+
 if TYPE_CHECKING:
     from palmtop.core.loop import AgentLoop
 
@@ -195,6 +197,7 @@ class TelegramChannel:
         bot_token: str,
         agent: AgentLoop,
         allowed_users: list[int] | None = None,
+        allow_anyone: bool = False,
         stt=None,
         tts=None,
         data_dir=None,
@@ -204,6 +207,8 @@ class TelegramChannel:
             raise ValueError("TELEGRAM_BOT_TOKEN is required")
         self._agent = agent
         self._allowed_users = set(allowed_users) if allowed_users else None
+        self._allow_anyone = allow_anyone
+        log_access_policy(log, "telegram", self._allowed_users, allow_anyone=allow_anyone)
         self._stt = stt
         self._tts = tts
         self._voice_tmp = (data_dir or Path("data")) / "voice_tmp"
@@ -225,32 +230,32 @@ class TelegramChannel:
     async def _on_engine(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         user = update.effective_user
         uid = user.id if user else None
-        if self._allowed_users and uid not in self._allowed_users:
+        if not sender_allowed(uid, self._allowed_users, allow_anyone=self._allow_anyone):
             return
         task = " ".join(context.args) if context.args else ""
         log.info("Engine command from %s: %s", uid, task[:80])
 
         async with _TypingIndicator(update.effective_chat.id, context.bot):
-            reply = await self._agent.run_sovereign_engine(task, user_id=str(uid))
+            reply = await self._agent.run_sovereign_engine(task, user_id=str(uid), source="telegram")
         await self._send_reply(update.message, reply)
 
     async def _on_cursor(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         user = update.effective_user
         uid = user.id if user else None
-        if self._allowed_users and uid not in self._allowed_users:
+        if not sender_allowed(uid, self._allowed_users, allow_anyone=self._allow_anyone):
             return
         task = " ".join(context.args) if context.args else ""
         log.info("Cursor command from %s: %s", uid, task[:80])
 
         async with _TypingIndicator(update.effective_chat.id, context.bot):
-            reply = await self._agent.run_cursor_delegate(task, user_id=str(uid))
+            reply = await self._agent.run_cursor_delegate(task, user_id=str(uid), source="telegram")
         await self._send_reply(update.message, reply)
 
     async def _on_voice_toggle(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Toggle voice replies on/off for this user."""
         user = update.effective_user
         uid = user.id if user else None
-        if self._allowed_users and uid not in self._allowed_users:
+        if not sender_allowed(uid, self._allowed_users, allow_anyone=self._allow_anyone):
             return
 
         if not self._tts:
@@ -270,7 +275,7 @@ class TelegramChannel:
         """Approve a pending engine/cursor blessing request."""
         user = update.effective_user
         uid = user.id if user else None
-        if self._allowed_users and uid not in self._allowed_users:
+        if not sender_allowed(uid, self._allowed_users, allow_anyone=self._allow_anyone):
             return
         log.info(
             "/approve from %s (gate pending: %s)",
@@ -287,7 +292,7 @@ class TelegramChannel:
         """Deny a pending engine/cursor blessing request."""
         user = update.effective_user
         uid = user.id if user else None
-        if self._allowed_users and uid not in self._allowed_users:
+        if not sender_allowed(uid, self._allowed_users, allow_anyone=self._allow_anyone):
             return
         log.info(
             "/deny from %s (gate pending: %s)",
@@ -304,7 +309,7 @@ class TelegramChannel:
         """Handle incoming voice messages — transcribe, respond with text + voice."""
         user = update.effective_user
         uid = user.id if user else None
-        if self._allowed_users and uid not in self._allowed_users:
+        if not sender_allowed(uid, self._allowed_users, allow_anyone=self._allow_anyone):
             return
 
         if not self._stt:
@@ -340,7 +345,7 @@ class TelegramChannel:
             if hasattr(self._agent, "handle_stream"):
                 # Collect the final reply from the streaming path
                 async with _TypingIndicator(update.effective_chat.id, context.bot):
-                    async for event, data in self._agent.handle_stream(transcript, user_id=str(uid)):
+                    async for event, data in self._agent.handle_stream(transcript, user_id=str(uid), source="telegram"):
                         if event == "done":
                             reply_text = data
                         elif event == "error":
@@ -350,7 +355,7 @@ class TelegramChannel:
                     await self._send_reply(update.message, reply_text)
             else:
                 async with _TypingIndicator(update.effective_chat.id, context.bot):
-                    reply_text = await self._agent.handle(transcript, user_id=str(uid))
+                    reply_text = await self._agent.handle(transcript, user_id=str(uid), source="telegram")
                 await self._send_reply(update.message, reply_text)
 
             # Synthesize and send voice reply
@@ -415,7 +420,7 @@ class TelegramChannel:
         text = update.message.text
         log.info("Message from %s (id=%s): %s", user.first_name if user else "?", uid, text[:80])
 
-        if self._allowed_users and uid not in self._allowed_users:
+        if not sender_allowed(uid, self._allowed_users, allow_anyone=self._allow_anyone):
             log.warning(
                 "Rejected message from unauthorized user %s (id=%s)",
                 user.first_name if user else "?",
@@ -429,7 +434,7 @@ class TelegramChannel:
             reply_text = await self._on_message_stream(update, context, text, str(uid))
         else:
             async with _TypingIndicator(update.effective_chat.id, context.bot):
-                reply_text = await self._agent.handle(text, user_id=str(uid))
+                reply_text = await self._agent.handle(text, user_id=str(uid), source="telegram")
             await self._send_reply(update.message, reply_text)
 
         # Voice reply if the user toggled /voice on
@@ -455,7 +460,7 @@ class TelegramChannel:
         final_reply = ""
 
         async with _TypingIndicator(chat_id, bot):
-            async for event, data in self._agent.handle_stream(text, user_id=user_id):
+            async for event, data in self._agent.handle_stream(text, user_id=user_id, source="telegram"):
                 if event == "status":
                     # Status updates — if we haven't sent a message yet, that's fine
                     # The typing indicator handles the "thinking" UX

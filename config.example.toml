@@ -67,6 +67,12 @@ accent_dim = "#c49a20"
 #            "whatsapp", "xmpp", "scuttlebot".
 # All channels share the same AgentLoop (memory, tools, inference).
 # Defaults to sms on phone, telegram on dev if neither is set.
+#
+# SECURITY — authorization fails CLOSED. Each channel exposes the full agent
+# (your email, calendar, files, deploys). A channel with no allow-list set
+# (allowed_users / allowed_numbers / allowed_jids / allowed_senders) refuses
+# ALL inbound messages. To intentionally run a public bot, set allow_anyone =
+# true on that channel (logged loudly at startup). Configure the allow-list.
 # Telegram channel: uv sync --extra telegram  (bootstrap_termux.sh installs this)
 
 # ── Health / Admin ───────────────────────────────────────────────────
@@ -125,7 +131,8 @@ n_threads = 4
 [telegram]
 # Set TELEGRAM_BOT_TOKEN env var instead of putting it here
 # bot_token = ""
-# allowed_users = []
+# allowed_users = []          # Telegram user IDs; empty = refuse everyone (fail closed)
+# allow_anyone = false        # set true ONLY to accept messages from any user
 
 [discord]
 # Set DISCORD_BOT_TOKEN env var instead of putting it here
@@ -168,7 +175,8 @@ n_threads = 4
 # phone_number_id = ""
 # access_token = ""
 # verify_token = ""              # for webhook verification challenge
-# app_secret = ""                # optional — verifies webhook signatures
+# app_secret = ""                # REQUIRED — without it, inbound webhooks are rejected
+#                                # (can't verify the request actually came from Meta)
 # allowed_numbers = ["+1234567890"]
 # webhook_port = 8080
 # webhook_path = "/webhook/whatsapp"
@@ -203,7 +211,8 @@ n_threads = 4
 # As a tool: the agent can read/send email at any time.
 # As a channel: add "email" to channels = [...] for inbound email routing.
 # poll_interval = 30            # seconds between inbox checks (channel mode)
-# allowed_senders = []          # empty = accept all; list = only these senders
+# allowed_senders = []          # exact From addresses; empty = refuse everyone (fail closed)
+# allow_anyone = false          # set true ONLY to accept mail from any sender
 
 [atlassian]
 # domain = "yourcompany.atlassian.net"
@@ -260,7 +269,19 @@ mode = "soft"           # "soft" = warn and continue; "hard" = refuse misaligned
 # goals_path = ""       # empty = auto-resolve docs/plans then data/docs/plans
 use_semantic = true     # Ollama judges tasks that fail keyword match (localhost:11434)
 
-# Sovereign engine — the agent can trigger it from chat:
+# ── Owner identity ───────────────────────────────────────────────────
+# The engine: / cursor: commands run autonomous tasks and cloud code
+# execution — far more powerful than a normal chat. They are restricted to
+# the owner(s) listed here, regardless of which channel admits the sender.
+# IDs are channel-qualified (the same form channels log for a sender):
+#   telegram:<numeric user id>   sms:+<E.164 number>   slack:U0123   discord:<id>
+# SECURITY: if this list is empty, engine: / cursor: are refused on EVERY
+# channel (fail closed). Set it to use those commands.
+[agent]
+owners = []
+# owners = ["telegram:123456789", "sms:+15551234567"]
+
+# Sovereign engine — the agent can trigger it from chat (owners only):
 #   /engine draft poster copy        (Telegram)
 #   /claude draft poster copy        (Telegram alias — same as /engine)
 #   engine: draft poster copy        (Telegram or SMS)
@@ -348,8 +369,13 @@ tts_voice = "Kore"                  # Gemini voices: Kore, Puck, Charon, Fenrir,
 # --- SMS / RCS on the S21 (Termux:API, dual-channel with Telegram) ---
 [sms]
 enabled = false
-allowed_numbers = ["+15551234567"]       # SMS inbox filter
-allowed_sender_names = []     # RCS notification title filter
+allowed_numbers = ["+15551234567"]       # authorized senders; empty = refuse everyone (fail closed)
+# RCS notifications carry a display name, not a number. The sender's number is
+# resolved (from the title or your device contacts) and checked against
+# allowed_numbers — the display name alone never authorizes. allowed_sender_names
+# only helps map a known contact name to its number for replies.
+allowed_sender_names = []
+allow_anyone = false          # set true ONLY to accept SMS/RCS from any number
 poll_interval = 5
 
 # --- Proactive monitoring — the agent reaches out when something changes ---

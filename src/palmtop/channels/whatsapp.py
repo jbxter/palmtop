@@ -20,6 +20,8 @@ from typing import TYPE_CHECKING
 
 import httpx
 
+from palmtop.channels.auth import log_access_policy, sender_allowed
+
 if TYPE_CHECKING:
     from palmtop.core.loop import AgentLoop
 
@@ -45,6 +47,7 @@ class WhatsAppChannel:
         verify_token: str,
         app_secret: str = "",
         allowed_numbers: list[str] | None = None,
+        allow_anyone: bool = False,
         webhook_port: int = 8080,
         webhook_path: str = "/webhook/whatsapp",
     ) -> None:
@@ -60,6 +63,13 @@ class WhatsAppChannel:
         self._verify_token = verify_token
         self._app_secret = app_secret
         self._allowed_numbers = set(allowed_numbers) if allowed_numbers else None
+        self._allow_anyone = allow_anyone
+        log_access_policy(log, "whatsapp", self._allowed_numbers, allow_anyone=allow_anyone)
+        if not app_secret:
+            log.warning(
+                "whatsapp: app_secret not set — inbound webhooks cannot be verified and "
+                "will be REJECTED. Set WHATSAPP_APP_SECRET to receive messages."
+            )
         self._webhook_port = webhook_port
         self._webhook_path = webhook_path
         self._agent: AgentLoop | None = None
@@ -148,7 +158,7 @@ class WhatsAppChannel:
         token = request.query_params.get("hub.verify_token")
         challenge = request.query_params.get("hub.challenge")
 
-        if mode == "subscribe" and token == self._verify_token:
+        if mode == "subscribe" and token and hmac.compare_digest(token, self._verify_token):
             log.info("WhatsApp webhook verified")
             return PlainTextResponse(challenge or "")
         return PlainTextResponse("Forbidden", status_code=403)
@@ -159,20 +169,21 @@ class WhatsAppChannel:
 
         body = await request.body()
 
-        # Verify signature if app_secret is configured
-        if self._app_secret:
-            signature = request.headers.get("x-hub-signature-256", "")
-            expected = (
-                "sha256="
-                + hmac.new(
-                    self._app_secret.encode(),
-                    body,
-                    hashlib.sha256,
-                ).hexdigest()
+        # Fail closed: without an app_secret we cannot verify that the request
+        # actually came from Meta, so an unsigned/forgeable webhook must be
+        # rejected rather than processed.
+        if not self._app_secret:
+            log.error(
+                "WhatsApp webhook rejected: app_secret not set, cannot verify the "
+                "request signature. Set WHATSAPP_APP_SECRET to receive messages."
             )
-            if not hmac.compare_digest(signature, expected):
-                log.warning("WhatsApp webhook signature mismatch")
-                return PlainTextResponse("Invalid signature", status_code=403)
+            return PlainTextResponse("Forbidden", status_code=403)
+
+        signature = request.headers.get("x-hub-signature-256", "")
+        expected = "sha256=" + hmac.new(self._app_secret.encode(), body, hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(signature, expected):
+            log.warning("WhatsApp webhook signature mismatch")
+            return PlainTextResponse("Invalid signature", status_code=403)
 
         try:
             data = json.loads(body)
@@ -207,8 +218,8 @@ class WhatsAppChannel:
         if not sender:
             return
 
-        # Check allowlist
-        if self._allowed_numbers and sender not in self._allowed_numbers:
+        # Check allowlist (fail closed when unconfigured)
+        if not sender_allowed(sender, self._allowed_numbers, allow_anyone=self._allow_anyone):
             log.debug("WhatsApp message from non-allowed number: %s", sender)
             return
 

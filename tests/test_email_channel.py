@@ -121,7 +121,7 @@ class TestSeedSeen:
 class TestPollInbox:
     @pytest.mark.asyncio
     async def test_new_messages_routed_to_agent(self):
-        ch = EmailChannel(api_key="am_test", inbox_id="inbox_abc")
+        ch = EmailChannel(api_key="am_test", inbox_id="inbox_abc", allow_anyone=True)
         ch._seen = {"msg_old"}
         ch._agent = AsyncMock()
         ch._agent.handle = AsyncMock(return_value="Thanks for your email!")

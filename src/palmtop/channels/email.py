@@ -13,9 +13,12 @@ from __future__ import annotations
 import asyncio
 import logging
 from datetime import datetime
+from email.utils import parseaddr
 from typing import TYPE_CHECKING
 
 import httpx
+
+from palmtop.channels.auth import log_access_policy, sender_allowed
 
 if TYPE_CHECKING:
     from palmtop.core.loop import AgentLoop
@@ -45,13 +48,18 @@ class EmailChannel:
         inbox_id: str = "",
         poll_interval: int = DEFAULT_POLL_INTERVAL,
         allowed_senders: list[str] | None = None,
+        allow_anyone: bool = False,
     ) -> None:
         if not api_key:
             raise ValueError("AGENTMAIL_API_KEY is required for email channel")
         self._api_key = api_key
         self._inbox_id = inbox_id
         self._poll_interval = poll_interval
-        self._allowed_senders = {s.lower() for s in allowed_senders} if allowed_senders else None
+        self._allowed_senders = (
+            {parseaddr(s)[1].lower() or s.lower() for s in allowed_senders} if allowed_senders else None
+        )
+        self._allow_anyone = allow_anyone
+        log_access_policy(log, "email", self._allowed_senders, allow_anyone=allow_anyone)
         self._client: httpx.AsyncClient | None = None
         self._stop_event = asyncio.Event()
         self._seen: set[str] = set()
@@ -221,12 +229,13 @@ class EmailChannel:
         msg_id = msg.get("message_id", "")
         body = msg.get("extracted_text") or msg.get("text") or ""
 
-        # Filter by allowed senders
-        if self._allowed_senders:
-            sender_lower = sender.lower()
-            if not any(allowed in sender_lower for allowed in self._allowed_senders):
-                log.debug("Email from non-allowed sender %s — skipping", sender)
-                return
+        # Filter by allowed senders (fail closed when unconfigured). Compare the
+        # parsed address exactly — substring matching would admit lookalikes like
+        # me@example.com.evil.com or a spoofed display name.
+        sender_addr = parseaddr(sender)[1].lower()
+        if not sender_allowed(sender_addr, self._allowed_senders, allow_anyone=self._allow_anyone):
+            log.debug("Email from non-allowed sender %s — skipping", sender)
+            return
 
         if not body.strip():
             log.debug("Empty email body from %s (subject: %s) — skipping", sender, subject)
