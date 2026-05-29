@@ -214,8 +214,11 @@ n_threads = 4
 # As a tool: the agent can read/send email at any time.
 # As a channel: add "email" to channels = [...] for inbound email routing.
 # poll_interval = 30            # seconds between inbox checks (channel mode)
-# allowed_senders = []          # exact From addresses; empty = refuse everyone (fail closed)
-# allow_anyone = false          # set true ONLY to accept mail from any sender
+# allowed_senders = []          # inbound: exact From addresses; empty = refuse everyone (fail closed)
+# allow_anyone = false          # inbound: set true ONLY to accept mail from any sender
+# allowed_recipients = []       # OUTBOUND tool: addresses or bare domains the agent may
+#                               # email via [TOOL:email] send/forward; empty = allow all.
+#                               # Guards prompt-injection exfil/spam (lead outreach is separate).
 
 [atlassian]
 # domain = "yourcompany.atlassian.net"

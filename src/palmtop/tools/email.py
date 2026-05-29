@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime
+from email.utils import parseaddr
 
 import httpx
 
@@ -39,11 +40,34 @@ class EmailTool(Tool):
         "  [TOOL:email] whoami — show inbox address"
     )
 
-    def __init__(self, api_key: str, inbox_id: str = "") -> None:
+    def __init__(self, api_key: str, inbox_id: str = "", allowed_recipients: list[str] | None = None) -> None:
         self._api_key = api_key
         self._inbox_id = inbox_id
         self._client: httpx.AsyncClient | None = None
         self._email_address: str = ""
+        # Recipients the agent's email TOOL (LLM-driven send/forward) may write to.
+        # Entries are exact addresses or bare domains (e.g. "example.com"). Empty =
+        # allow all (opt-in hardening). This guards the prompt-injection exfil/spam
+        # path; programmatic send_email() (e.g. lead outreach) is NOT restricted here.
+        self._allowed_recipients = (
+            {r.strip().lower() for r in allowed_recipients if r and r.strip()} if allowed_recipients else set()
+        )
+
+    def _recipient_allowed(self, addr: str) -> bool:
+        if not self._allowed_recipients:
+            return True
+        a = parseaddr(addr)[1].lower()
+        if not a:
+            return False
+        if a in self._allowed_recipients:
+            return True
+        domain = a.rpartition("@")[2]
+        return bool(domain and domain in self._allowed_recipients)
+
+    @staticmethod
+    def _audit(action: str, to: str, detail: str = "") -> None:
+        """Audit-log an outbound email action."""
+        log.info("EMAIL AUDIT %s to=%s %s", action, to, detail)
 
     def _get_client(self) -> httpx.AsyncClient:
         if self._client is None:
@@ -219,6 +243,10 @@ class EmailTool(Tool):
         subject = parts[1]
         body = parts[2]
 
+        if not self._recipient_allowed(to):
+            self._audit("send BLOCKED", to, "(not in allowed_recipients)")
+            return f"Refused — {to} is not in the allowed recipient list ([email] allowed_recipients)."
+
         # Wrap in branded HTML template
         from palmtop.brand import build_email_html
 
@@ -239,6 +267,7 @@ class EmailTool(Tool):
             return f"Failed to send ({resp.status_code}): {resp.text[:200]}"
 
         data = resp.json()
+        self._audit("send", to, f"subject={subject[:80]!r} id={data.get('message_id', '?')}")
         return f"Sent to {to}: {subject} (message_id: {data.get('message_id', '?')})"
 
     async def _reply(self, text: str) -> str:
@@ -271,6 +300,10 @@ class EmailTool(Tool):
         message_id = parts[0]
         to = parts[1]
 
+        if not self._recipient_allowed(to):
+            self._audit("forward BLOCKED", to, "(not in allowed_recipients)")
+            return f"Refused — {to} is not in the allowed recipient list ([email] allowed_recipients)."
+
         client = self._get_client()
         resp = await client.post(
             f"/inboxes/{self._inbox_id}/messages/{message_id}/forward",
@@ -280,6 +313,7 @@ class EmailTool(Tool):
             return f"Failed to forward ({resp.status_code}): {resp.text[:200]}"
 
         data = resp.json()
+        self._audit("forward", to, f"id={data.get('message_id', '?')}")
         return f"Forwarded to {to} (message_id: {data.get('message_id', '?')})"
 
     async def _search(self, query: str) -> str:

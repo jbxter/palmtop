@@ -16,6 +16,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
+from datetime import UTC, datetime
 
 from palmtop.brand import build_email_html
 from palmtop.inference.base import InferenceBackend, Message
@@ -23,6 +24,11 @@ from palmtop.persona import PersonaConfig
 from palmtop.tools.email import EmailTool
 
 log = logging.getLogger(__name__)
+
+# Safety throttle: cap auto-outreach emails per UTC day. The recipient is an
+# unverified, attacker-supplied address, so this bounds spam amplification even
+# if per-IP form rate limits are evaded (e.g. rotating IPs).
+DEFAULT_DAILY_OUTREACH_CAP = 25
 
 
 # ── LLM prompt templates ─────────────────────────────────────────────
@@ -105,12 +111,27 @@ class LeadOutreach:
         notify_fn: Callable[[str, str], Awaitable[None]] | None = None,
         notify_user_id: str = "",
         persona: PersonaConfig | None = None,
+        daily_cap: int = DEFAULT_DAILY_OUTREACH_CAP,
     ) -> None:
         self._llm = llm
         self._email = email_tool
         self._notify_fn = notify_fn
         self._notify_user_id = notify_user_id
         self._persona = persona or PersonaConfig()
+        self._daily_cap = daily_cap
+        self._sent_day = ""  # UTC date string of the current count window
+        self._sent_count = 0
+
+    def _within_daily_cap(self) -> bool:
+        """Reserve one auto-outreach slot for today; False if the cap is reached."""
+        today = datetime.now(UTC).strftime("%Y-%m-%d")
+        if today != self._sent_day:
+            self._sent_day = today
+            self._sent_count = 0
+        if self._sent_count >= self._daily_cap:
+            return False
+        self._sent_count += 1
+        return True
 
     @property
     def _booking_options(self) -> list[dict]:
@@ -147,6 +168,16 @@ class LeadOutreach:
             )
             return False
 
+        # Step 1b: Daily cap — bounds spam amplification to attacker-supplied
+        # addresses even if per-IP form limits are evaded.
+        if not self._within_daily_cap():
+            log.warning("Daily auto-outreach cap (%d) reached — not emailing %s", self._daily_cap, lead.email)
+            await self._notify(
+                f"⚠️ Daily auto-outreach cap ({self._daily_cap}) reached — did NOT email "
+                f"{lead.name} <{lead.email}>. Follow up manually if it's a real lead."
+            )
+            return False
+
         # Step 2: Draft personalized email body (plain text)
         email_body = await self._draft_email(lead)
         if not email_body:
@@ -175,10 +206,12 @@ class LeadOutreach:
             return False
 
         log.info(
-            "Outreach sent to %s <%s> (msg: %s)",
-            lead.name,
+            "OUTREACH AUDIT sent to=%s name=%s msg=%s (%d/%d today)",
             lead.email,
+            lead.name,
             msg_id,
+            self._sent_count,
+            self._daily_cap,
         )
 
         # Step 5: Notify about the auto-outreach
@@ -208,8 +241,10 @@ class LeadOutreach:
             return "QUALIFIED" in result.upper()
         except Exception:
             log.exception("Lead qualification LLM call failed")
-            # On error, default to qualified — don't miss real leads
-            return True
+            # Fail closed: a qualification error must NOT auto-send to an
+            # unverified, attacker-supplied address. The owner is still notified
+            # of the unqualified lead and can follow up manually.
+            return False
 
     async def _draft_email(self, lead: LeadInfo) -> str | None:
         """Use LLM to draft a personalized follow-up email."""

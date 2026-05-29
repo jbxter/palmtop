@@ -50,8 +50,11 @@ class AtlassianConfig:
 class EmailConfig:
     api_key: str = ""  # AgentMail API key
     inbox_id: str = ""  # default inbox (auto-detected if empty)
-    allowed_senders: list[str] = field(default_factory=list)  # exact addresses; empty = none
-    allow_anyone: bool = False  # accept mail from any sender (public inbox)
+    allowed_senders: list[str] = field(default_factory=list)  # inbound: exact addresses; empty = none
+    allow_anyone: bool = False  # inbound: accept mail from any sender (public inbox)
+    # Outbound TOOL allow-list (LLM send/forward): exact addresses or bare domains.
+    # Empty = allow all. Guards prompt-injection exfil/spam; does not affect outreach.
+    allowed_recipients: list[str] = field(default_factory=list)
 
 
 @dataclass
