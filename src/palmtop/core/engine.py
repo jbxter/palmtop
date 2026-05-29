@@ -34,6 +34,7 @@ class PalmtopAgent:
         goals_path: str | Path,
         llm: object | None = None,
         aligner: GoalAligner | None = None,
+        context: object | None = None,
         autonomous: bool = False,
         project_root: Path | None = None,
         data_dir: Path | None = None,
@@ -42,11 +43,11 @@ class PalmtopAgent:
             raise ValueError("PalmtopAgent requires an LLM provider")
         self._goals_path = Path(goals_path)
         self._llm = llm
+        self._context = context
         self._autonomous = autonomous
         self._project_root = project_root
         self._data_dir = data_dir
         self.aligner = aligner or GoalAligner(goals_path, use_semantic=False, autonomous=autonomous)
-
     # ── Orchestration ──────────────────────────────────────────────────────────
 
     def orchestrate(self, task: str, interactive: bool = False) -> str | None:
