@@ -16,6 +16,8 @@ from typing import TYPE_CHECKING
 import discord
 from discord import Intents, Message
 
+from palmtop.channels.auth import log_access_policy, sender_allowed
+
 if TYPE_CHECKING:
     from palmtop.core.loop import AgentLoop
 
@@ -38,6 +40,7 @@ class DiscordChannel:
         self,
         bot_token: str,
         allowed_users: list[int] | None = None,
+        allow_anyone: bool = False,
         guild_id: int | None = None,
         channel_id: int | None = None,
     ) -> None:
@@ -45,6 +48,8 @@ class DiscordChannel:
             raise ValueError("DISCORD_BOT_TOKEN is required")
         self._bot_token = bot_token
         self._allowed_users = set(allowed_users) if allowed_users else None
+        self._allow_anyone = allow_anyone
+        log_access_policy(log, "discord", self._allowed_users, allow_anyone=allow_anyone)
         self._guild_id = guild_id
         self._channel_id = channel_id  # restrict to specific text channel
         self._agent: AgentLoop | None = None
@@ -146,8 +151,8 @@ class DiscordChannel:
         if message.author.bot:
             return
 
-        # Check user allowlist
-        if self._allowed_users and message.author.id not in self._allowed_users:
+        # Check user allowlist (fail closed when unconfigured)
+        if not sender_allowed(message.author.id, self._allowed_users, allow_anyone=self._allow_anyone):
             log.debug("Rejected message from non-allowed user %s (id=%d)", message.author.name, message.author.id)
             return
 

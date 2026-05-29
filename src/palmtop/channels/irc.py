@@ -15,6 +15,8 @@ import logging
 import re
 from typing import TYPE_CHECKING
 
+from palmtop.channels.auth import log_access_policy, sender_allowed
+
 if TYPE_CHECKING:
     from palmtop.core.loop import AgentLoop
 
@@ -41,6 +43,7 @@ class IrcChannel:
         password: str = "",
         use_ssl: bool = False,
         allowed_users: list[str] | None = None,
+        allow_anyone: bool = False,
     ) -> None:
         if not server:
             raise ValueError("IRC server is required")
@@ -51,6 +54,8 @@ class IrcChannel:
         self._password = password
         self._use_ssl = use_ssl
         self._allowed_users = {u.lower() for u in allowed_users} if allowed_users else None
+        self._allow_anyone = allow_anyone
+        log_access_policy(log, "irc", self._allowed_users, allow_anyone=allow_anyone)
         self._agent: AgentLoop | None = None
         self._stop_event = asyncio.Event()
         self._writer: asyncio.StreamWriter | None = None
@@ -194,8 +199,8 @@ class IrcChannel:
         if not message:
             return
 
-        # Check allowlist
-        if self._allowed_users and sender_nick.lower() not in self._allowed_users:
+        # Check allowlist (fail closed when unconfigured)
+        if not sender_allowed(sender_nick.lower(), self._allowed_users, allow_anyone=self._allow_anyone):
             return
 
         # Determine if this is a DM or channel mention

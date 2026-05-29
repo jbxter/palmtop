@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import hmac
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -11,6 +13,18 @@ from palmtop.channels.whatsapp import (
     WhatsAppChannel,
     _split_message,
 )
+
+
+class _FakeRequest:
+    """Minimal stand-in for a Starlette Request used by the webhook handlers."""
+
+    def __init__(self, *, body: bytes = b"", headers: dict | None = None, query: dict | None = None):
+        self._body = body
+        self.headers = headers or {}
+        self.query_params = query or {}
+
+    async def body(self) -> bytes:
+        return self._body
 
 
 class TestWhatsAppChannelInit:
@@ -178,6 +192,7 @@ class TestWhatsAppProcessNotification:
             phone_number_id="123",
             access_token="tok",
             verify_token="vtok",
+            allowed_numbers=["+15551234567"],
         )
         ch._agent = AsyncMock()
         ch._agent.handle = AsyncMock(return_value="Reply")
@@ -214,6 +229,63 @@ class TestWhatsAppProcessNotification:
     async def test_handles_empty_notification(self, channel):
         await channel._process_notification({})
         channel._agent.handle.assert_not_called()
+
+
+class TestWhatsAppWebhookSignature:
+    """Webhook authenticity — issue #28 (fail closed without app_secret)."""
+
+    def _channel(self, app_secret: str = ""):
+        # The webhook handlers construct Starlette responses; skip (don't fail)
+        # when the optional `web` dependency isn't installed (e.g. CI --extra dev).
+        pytest.importorskip("starlette")
+        ch = WhatsAppChannel(
+            phone_number_id="123",
+            access_token="tok",
+            verify_token="vtok",
+            app_secret=app_secret,
+            allowed_numbers=["+15551234567"],
+        )
+        ch._agent = AsyncMock()
+        ch._agent.handle = AsyncMock(return_value="reply")
+        return ch
+
+    @pytest.mark.asyncio
+    async def test_rejects_when_app_secret_unset(self):
+        ch = self._channel(app_secret="")
+        resp = await ch._handle_webhook(_FakeRequest(body=b'{"entry": []}'))
+        assert resp.status_code == 403
+
+    @pytest.mark.asyncio
+    async def test_rejects_bad_signature(self):
+        ch = self._channel(app_secret="s3cret")
+        req = _FakeRequest(body=b'{"entry": []}', headers={"x-hub-signature-256": "sha256=deadbeef"})
+        resp = await ch._handle_webhook(req)
+        assert resp.status_code == 403
+
+    @pytest.mark.asyncio
+    async def test_accepts_valid_signature(self):
+        secret = "s3cret"
+        ch = self._channel(app_secret=secret)
+        body = b'{"entry": []}'
+        sig = "sha256=" + hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
+        req = _FakeRequest(body=body, headers={"x-hub-signature-256": sig})
+        resp = await ch._handle_webhook(req)
+        assert resp.status_code == 200
+
+    @pytest.mark.asyncio
+    async def test_verify_token_match(self):
+        ch = self._channel(app_secret="s")
+        req = _FakeRequest(query={"hub.mode": "subscribe", "hub.verify_token": "vtok", "hub.challenge": "ping"})
+        resp = await ch._handle_verify(req)
+        assert resp.status_code == 200
+        assert resp.body == b"ping"
+
+    @pytest.mark.asyncio
+    async def test_verify_token_rejects_wrong(self):
+        ch = self._channel(app_secret="s")
+        req = _FakeRequest(query={"hub.mode": "subscribe", "hub.verify_token": "WRONG", "hub.challenge": "ping"})
+        resp = await ch._handle_verify(req)
+        assert resp.status_code == 403
 
 
 class TestWhatsAppSplitMessage:

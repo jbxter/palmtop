@@ -8,6 +8,7 @@ from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+from palmtop.channels.auth import owner_key
 from palmtop.core.evaluator import check_capability_claims, check_date_claims, evaluate_response
 from palmtop.core.goal_aligner import GoalAligner
 from palmtop.core.router import route_fast
@@ -78,6 +79,7 @@ class AgentLoop:
         send_fn: object | None = None,
         cursor_manager: object | None = None,
         system_prompt: str = "",
+        owner_ids: set[str] | None = None,
     ) -> None:
         self._local = local_backend
         self._light = light_backend
@@ -98,14 +100,32 @@ class AgentLoop:
         self._blessing_gate = blessing_gate
         self._send_fn = send_fn
         self._cursor = cursor_manager
+        # Owners authorized for privileged engine:/cursor: commands. Channel-
+        # qualified IDs (e.g. "telegram:123", "sms:+1555"). Empty = fail closed.
+        self._owner_ids = owner_ids or set()
 
         # Pre-build the static portion of the system prompt — tool instructions,
         # plan instructions, and extra system prompt never change between messages.
         # Only date, memory, and plans context are interpolated per-request.
         self._static_suffix = self._build_static_suffix()
 
-    async def run_sovereign_engine(self, task: str, user_id: str = "default") -> str:
+    def _is_owner(self, user_id: str, source: str = "") -> bool:
+        """Whether this sender may run privileged engine:/cursor: commands.
+
+        Fails closed: with no owners configured, nobody is authorized. The key
+        is channel-qualified — channels that already prefix user_id (slack:U1,
+        sms:+1...) pass it through; bare-ID channels (Telegram) pass source so
+        we can qualify it the same way owners are listed in config.
+        """
+        if not self._owner_ids:
+            return False
+        return owner_key(user_id, source) in self._owner_ids
+
+    async def run_sovereign_engine(self, task: str, user_id: str = "default", source: str = "") -> str:
         """Autonomous align → gate → bless → execute (no stdin)."""
+        if not self._is_owner(user_id, source):
+            log.warning("Refused engine command from non-owner %s", f"{source}:{user_id}" if source else user_id)
+            return "Not authorized — engine commands are restricted to the configured owner(s)."
         if not self._sovereign:
             return (
                 "Sovereign engine is disabled. Set [engine] enabled = true in config.toml "
@@ -123,8 +143,11 @@ class AgentLoop:
             send_fn=self._send_fn,
         )
 
-    async def run_cursor_delegate(self, task: str, user_id: str = "default") -> str:
+    async def run_cursor_delegate(self, task: str, user_id: str = "default", source: str = "") -> str:
         """Launch a Cursor Cloud Agent (async completion via Telegram notify)."""
+        if not self._is_owner(user_id, source):
+            log.warning("Refused cursor command from non-owner %s", f"{source}:{user_id}" if source else user_id)
+            return "Not authorized — cursor commands are restricted to the configured owner(s)."
         if not self._cursor:
             return (
                 "Cursor bridge is disabled. Set [cursor] enabled = true, "
@@ -493,18 +516,20 @@ class AgentLoop:
             system += "\n\n" + plans_context
         return system
 
-    async def handle(self, user_text: str, user_id: str = "default") -> str:
+    async def handle(self, user_text: str, user_id: str = "default", source: str = "") -> str:
         self._current_user_id = user_id
         engine_task = parse_engine_task(user_text)
         if engine_task is not None:
-            return await self.run_sovereign_engine(engine_task, user_id=user_id)
+            return await self.run_sovereign_engine(engine_task, user_id=user_id, source=source)
         cursor_task = parse_cursor_task(user_text)
         if cursor_task is not None:
-            return await self.run_cursor_delegate(cursor_task, user_id=user_id)
+            return await self.run_cursor_delegate(cursor_task, user_id=user_id, source=source)
         with self._tracer.trace_turn(user_id, user_text) as trace:
             return await self._handle_traced(user_text, user_id, trace)
 
-    async def handle_stream(self, user_text: str, user_id: str = "default") -> AsyncIterator[tuple[str, str]]:
+    async def handle_stream(
+        self, user_text: str, user_id: str = "default", source: str = ""
+    ) -> AsyncIterator[tuple[str, str]]:
         """Yield (event, data) tuples for streaming UX.
 
         Events:
@@ -518,14 +543,14 @@ class AgentLoop:
         engine_task = parse_engine_task(user_text)
         if engine_task is not None:
             yield ("status", "thinking")
-            result = await self.run_sovereign_engine(engine_task, user_id=user_id)
+            result = await self.run_sovereign_engine(engine_task, user_id=user_id, source=source)
             yield ("done", result)
             return
 
         cursor_task = parse_cursor_task(user_text)
         if cursor_task is not None:
             yield ("status", "thinking")
-            result = await self.run_cursor_delegate(cursor_task, user_id=user_id)
+            result = await self.run_cursor_delegate(cursor_task, user_id=user_id, source=source)
             yield ("done", result)
             return
 
