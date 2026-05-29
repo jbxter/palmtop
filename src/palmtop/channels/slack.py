@@ -20,6 +20,8 @@ from slack_bolt.adapter.socket_mode.async_handler import AsyncSocketModeHandler
 from slack_bolt.async_app import AsyncApp
 from slack_sdk.web.async_client import AsyncWebClient
 
+from palmtop.channels.auth import log_access_policy, sender_allowed
+
 if TYPE_CHECKING:
     from palmtop.core.loop import AgentLoop
 
@@ -41,6 +43,7 @@ class SlackChannel:
         bot_token: str,
         app_token: str,
         allowed_users: list[str] | None = None,
+        allow_anyone: bool = False,
     ) -> None:
         if not bot_token:
             raise ValueError("SLACK_BOT_TOKEN is required")
@@ -49,6 +52,8 @@ class SlackChannel:
         self._bot_token = bot_token
         self._app_token = app_token
         self._allowed_users = set(allowed_users) if allowed_users else None
+        self._allow_anyone = allow_anyone
+        log_access_policy(log, "slack", self._allowed_users, allow_anyone=allow_anyone)
         self._agent: AgentLoop | None = None
         self._stop_event = asyncio.Event()
         self._handler: AsyncSocketModeHandler | None = None
@@ -133,8 +138,8 @@ class SlackChannel:
         if not text or not user_id:
             return
 
-        # Check allowlist
-        if self._allowed_users and user_id not in self._allowed_users:
+        # Check allowlist (fail closed when unconfigured)
+        if not sender_allowed(user_id, self._allowed_users, allow_anyone=self._allow_anyone):
             log.debug("Rejected Slack message from non-allowed user %s", user_id)
             return
 
@@ -152,8 +157,8 @@ class SlackChannel:
         if not text or not user_id:
             return
 
-        # Check allowlist
-        if self._allowed_users and user_id not in self._allowed_users:
+        # Check allowlist (fail closed when unconfigured)
+        if not sender_allowed(user_id, self._allowed_users, allow_anyone=self._allow_anyone):
             log.debug("Rejected Slack mention from non-allowed user %s", user_id)
             return
 

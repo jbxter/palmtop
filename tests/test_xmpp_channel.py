@@ -130,6 +130,7 @@ class TestXmppOnMucMessage:
             jid="bot@server.org",
             password="secret",
             muc_nick="palmtop",
+            allow_anyone=True,  # this suite tests mention parsing, not authorization
         )
         ch._agent = AsyncMock()
         ch._agent.handle = AsyncMock(return_value="MUC reply!")

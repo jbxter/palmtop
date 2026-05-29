@@ -38,6 +38,7 @@ async def test_handle_routes_engine_prefix(tmp_path: Path) -> None:
         backend,
         sovereign_engine=sovereign,
         data_dir=tmp_path,
+        owner_ids={"u1"},
     )
     reply = await loop.handle("engine: test task", user_id="u1")
     assert "engine output" in reply
