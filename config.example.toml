@@ -309,6 +309,20 @@ enabled = true   # uses cloud backends (ANTHROPIC_API_KEY or GOOGLE_API_KEY)
 # timeout_s = 3600
 # auto_create_pr = true
 
+# Hermes Agent bridge (Nous Research) — see GitHub issue #22. Opt-in.
+# Palmtop stays the canonical memory store (it wins on conflict); Hermes is a
+# synced replica. Imported skills are untrusted until you approve their first
+# mutating action, then trusted (a new mutating tool re-triggers approval).
+# Set HERMES_API_KEY only for a hosted Hermes (local instances need no key).
+#
+# [hermes]
+# enabled = true
+# api_url = "http://localhost:8080"
+# sync_memory = false           # Phase 2: sync structured memory ↔ Hermes
+# sync_interval_minutes = 15
+# import_skills = false         # Phase 3: pull Hermes skills into the tool registry
+# require_blessing = true       # gate the first mutating use of an imported skill
+
 # Vercel — deploy linked Git projects (production or preview):
 #   [TOOL:vercel] deploy main
 #   [TOOL:vercel] status
