@@ -11,9 +11,12 @@ Usage:
     listener = SmsListener(agent, allowed_numbers=["+15551234567"])
     listener.start()  # call from inside the running event loop
 
-SMS inbox is filtered by allowed_numbers. RCS (notification listener) is
-filtered by allowed_sender_names (notification title, e.g. "the owner")
-and/or allowed_numbers when the title is a phone number.
+Authorization is by phone number (allowed_numbers) and fails closed: with
+no allow-list set, no sender is accepted unless allow_anyone=True. RCS
+notifications carry a display name, not a number, so the sender's number is
+resolved (from the title or the device's own contacts) and checked against
+allowed_numbers; the display name alone never grants access. allowed_sender_names
+helps map a known contact name to its number for replies, not to authorize.
 
 Requires Termux:API notification access for RCS (Android Settings →
 Apps → Special access → Notification access → Termux:API).
@@ -29,6 +32,8 @@ import subprocess
 import time
 from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING
+
+from palmtop.channels.auth import log_access_policy, sender_allowed
 
 if TYPE_CHECKING:
     from palmtop.core.loop import AgentLoop
@@ -114,11 +119,14 @@ class SmsListener:
         *,
         allowed_numbers: list[str] | None = None,
         allowed_sender_names: list[str] | None = None,
+        allow_anyone: bool = False,
         telegram_send_fn: Callable[[str, str], Awaitable[None]] | None = None,
     ) -> None:
         self._agent = agent
         self._allowed = {self._normalize(n) for n in allowed_numbers} if allowed_numbers else None
         self._allowed_names = {n.lower().strip() for n in allowed_sender_names} if allowed_sender_names else None
+        self._allow_anyone = allow_anyone
+        log_access_policy(log, "sms", self._allowed, allow_anyone=allow_anyone)
         self._telegram_send = telegram_send_fn
         self._seen: set[str] = set()
         self._task: asyncio.Task | None = None
@@ -335,9 +343,8 @@ class SmsListener:
                         pass
 
     def _number_allowed(self, number: str) -> bool:
-        if not self._allowed:
-            return True
-        return self._normalize(number) in self._allowed
+        # Fail closed: an unset allow-list authorizes no one (unless allow_anyone).
+        return sender_allowed(self._normalize(number), self._allowed, allow_anyone=self._allow_anyone)
 
     def _title_matches_allowed_name(self, title: str) -> bool:
         if not self._allowed_names:
@@ -349,13 +356,20 @@ class SmsListener:
         return False
 
     def _rcs_sender_allowed(self, title: str) -> bool:
-        """RCS notifications use contact display names in the title field."""
-        if not self._allowed and not self._allowed_names:
+        """Authorize an RCS sender by VERIFIED phone number only.
+
+        RCS notifications carry the sender's display name (the notification
+        title), which is attacker-controllable, so it must never be the
+        authorization token on its own. We authorize only when a phone number
+        can be resolved for the sender — extracted from the title, or mapped
+        via the device's own contacts (the OS labels a sender with a contact
+        name only when their number matches that contact) — and that number is
+        on the allow-list. Fails closed otherwise.
+        """
+        if self._allow_anyone:
             return True
-        if self._title_matches_allowed_name(title):
-            return True
-        raw = self._extract_number(title)
-        return bool(raw and self._number_allowed(raw))
+        number = self._resolve_sender_number(title)
+        return bool(number and self._number_allowed(number))
 
     def _resolve_sender_number(self, title: str) -> str | None:
         """Map notification title to a phone number for SMS reply."""
@@ -375,9 +389,9 @@ class SmsListener:
                     if key == contact_name or key.startswith(contact_name + " "):
                         return self._normalize(phone)
 
-        if self._title_matches_allowed_name(title) and self._allowed:
-            if len(self._allowed) == 1:
-                return next(iter(self._allowed))
+        # NOTE: deliberately no "title matches an allowed name → assume the
+        # single allowed number" fallback. That grants access from a display
+        # name with no number verification at all, and the title is spoofable.
         return None
 
     @staticmethod

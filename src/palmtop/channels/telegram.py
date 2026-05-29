@@ -14,6 +14,8 @@ from telegram.constants import ChatAction, ParseMode
 from telegram.error import Forbidden, TimedOut
 from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
 
+from palmtop.channels.auth import log_access_policy, sender_allowed
+
 if TYPE_CHECKING:
     from palmtop.core.loop import AgentLoop
 
@@ -195,6 +197,7 @@ class TelegramChannel:
         bot_token: str,
         agent: AgentLoop,
         allowed_users: list[int] | None = None,
+        allow_anyone: bool = False,
         stt=None,
         tts=None,
         data_dir=None,
@@ -204,6 +207,8 @@ class TelegramChannel:
             raise ValueError("TELEGRAM_BOT_TOKEN is required")
         self._agent = agent
         self._allowed_users = set(allowed_users) if allowed_users else None
+        self._allow_anyone = allow_anyone
+        log_access_policy(log, "telegram", self._allowed_users, allow_anyone=allow_anyone)
         self._stt = stt
         self._tts = tts
         self._voice_tmp = (data_dir or Path("data")) / "voice_tmp"
@@ -225,7 +230,7 @@ class TelegramChannel:
     async def _on_engine(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         user = update.effective_user
         uid = user.id if user else None
-        if self._allowed_users and uid not in self._allowed_users:
+        if not sender_allowed(uid, self._allowed_users, allow_anyone=self._allow_anyone):
             return
         task = " ".join(context.args) if context.args else ""
         log.info("Engine command from %s: %s", uid, task[:80])
@@ -237,7 +242,7 @@ class TelegramChannel:
     async def _on_cursor(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         user = update.effective_user
         uid = user.id if user else None
-        if self._allowed_users and uid not in self._allowed_users:
+        if not sender_allowed(uid, self._allowed_users, allow_anyone=self._allow_anyone):
             return
         task = " ".join(context.args) if context.args else ""
         log.info("Cursor command from %s: %s", uid, task[:80])
@@ -250,7 +255,7 @@ class TelegramChannel:
         """Toggle voice replies on/off for this user."""
         user = update.effective_user
         uid = user.id if user else None
-        if self._allowed_users and uid not in self._allowed_users:
+        if not sender_allowed(uid, self._allowed_users, allow_anyone=self._allow_anyone):
             return
 
         if not self._tts:
@@ -270,7 +275,7 @@ class TelegramChannel:
         """Approve a pending engine/cursor blessing request."""
         user = update.effective_user
         uid = user.id if user else None
-        if self._allowed_users and uid not in self._allowed_users:
+        if not sender_allowed(uid, self._allowed_users, allow_anyone=self._allow_anyone):
             return
         log.info(
             "/approve from %s (gate pending: %s)",
@@ -287,7 +292,7 @@ class TelegramChannel:
         """Deny a pending engine/cursor blessing request."""
         user = update.effective_user
         uid = user.id if user else None
-        if self._allowed_users and uid not in self._allowed_users:
+        if not sender_allowed(uid, self._allowed_users, allow_anyone=self._allow_anyone):
             return
         log.info(
             "/deny from %s (gate pending: %s)",
@@ -304,7 +309,7 @@ class TelegramChannel:
         """Handle incoming voice messages — transcribe, respond with text + voice."""
         user = update.effective_user
         uid = user.id if user else None
-        if self._allowed_users and uid not in self._allowed_users:
+        if not sender_allowed(uid, self._allowed_users, allow_anyone=self._allow_anyone):
             return
 
         if not self._stt:
@@ -415,7 +420,7 @@ class TelegramChannel:
         text = update.message.text
         log.info("Message from %s (id=%s): %s", user.first_name if user else "?", uid, text[:80])
 
-        if self._allowed_users and uid not in self._allowed_users:
+        if not sender_allowed(uid, self._allowed_users, allow_anyone=self._allow_anyone):
             log.warning(
                 "Rejected message from unauthorized user %s (id=%s)",
                 user.first_name if user else "?",

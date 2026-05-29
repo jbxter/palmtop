@@ -20,6 +20,8 @@ from typing import TYPE_CHECKING
 
 import httpx
 
+from palmtop.channels.auth import log_access_policy, sender_allowed
+
 if TYPE_CHECKING:
     from palmtop.core.loop import AgentLoop
 
@@ -45,6 +47,7 @@ class WhatsAppChannel:
         verify_token: str,
         app_secret: str = "",
         allowed_numbers: list[str] | None = None,
+        allow_anyone: bool = False,
         webhook_port: int = 8080,
         webhook_path: str = "/webhook/whatsapp",
     ) -> None:
@@ -60,6 +63,8 @@ class WhatsAppChannel:
         self._verify_token = verify_token
         self._app_secret = app_secret
         self._allowed_numbers = set(allowed_numbers) if allowed_numbers else None
+        self._allow_anyone = allow_anyone
+        log_access_policy(log, "whatsapp", self._allowed_numbers, allow_anyone=allow_anyone)
         self._webhook_port = webhook_port
         self._webhook_path = webhook_path
         self._agent: AgentLoop | None = None
@@ -207,8 +212,8 @@ class WhatsAppChannel:
         if not sender:
             return
 
-        # Check allowlist
-        if self._allowed_numbers and sender not in self._allowed_numbers:
+        # Check allowlist (fail closed when unconfigured)
+        if not sender_allowed(sender, self._allowed_numbers, allow_anyone=self._allow_anyone):
             log.debug("WhatsApp message from non-allowed number: %s", sender)
             return
 

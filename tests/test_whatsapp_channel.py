@@ -178,6 +178,7 @@ class TestWhatsAppProcessNotification:
             phone_number_id="123",
             access_token="tok",
             verify_token="vtok",
+            allowed_numbers=["+15551234567"],
         )
         ch._agent = AsyncMock()
         ch._agent.handle = AsyncMock(return_value="Reply")

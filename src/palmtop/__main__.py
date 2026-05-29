@@ -520,6 +520,7 @@ def main() -> None:
                     cfg.telegram.bot_token,
                     agent,
                     allowed_users=cfg.telegram.allowed_users or None,
+                    allow_anyone=cfg.telegram.allow_anyone,
                     stt=stt,
                     tts=tts,
                     data_dir=cfg.data_dir,
@@ -546,6 +547,7 @@ def main() -> None:
                     agent,
                     allowed_numbers=cfg.sms.allowed_numbers,
                     allowed_sender_names=cfg.sms.allowed_sender_names,
+                    allow_anyone=cfg.sms.allow_anyone,
                     telegram_send_fn=primary_send,
                 )
                 # SmsListener.start() is called from on_start (needs event loop)
@@ -560,6 +562,8 @@ def main() -> None:
                     email_ch = EmailChannel(
                         api_key=cfg.email.api_key,
                         inbox_id=cfg.email.inbox_id,
+                        allowed_senders=cfg.email.allowed_senders or None,
+                        allow_anyone=cfg.email.allow_anyone,
                     )
                     runner.add(email_ch)
 
@@ -576,6 +580,7 @@ def main() -> None:
                     discord_ch = DiscordChannel(
                         bot_token=cfg.discord.bot_token,
                         allowed_users=cfg.discord.allowed_users or None,
+                        allow_anyone=cfg.discord.allow_anyone,
                         guild_id=cfg.discord.guild_id or None,
                         channel_id=cfg.discord.channel_id or None,
                     )
@@ -595,6 +600,7 @@ def main() -> None:
                         bot_token=cfg.slack.bot_token,
                         app_token=cfg.slack.app_token,
                         allowed_users=cfg.slack.allowed_users or None,
+                        allow_anyone=cfg.slack.allow_anyone,
                     )
                     runner.add(slack_ch)
 
@@ -614,6 +620,7 @@ def main() -> None:
                         access_token=cfg.matrix.access_token,
                         allowed_users=cfg.matrix.allowed_users or None,
                         allowed_rooms=cfg.matrix.allowed_rooms or None,
+                        allow_anyone=cfg.matrix.allow_anyone,
                     )
                     runner.add(matrix_ch)
 
@@ -631,6 +638,7 @@ def main() -> None:
                         password=cfg.irc.password,
                         use_ssl=cfg.irc.use_ssl,
                         allowed_users=cfg.irc.allowed_users or None,
+                        allow_anyone=cfg.irc.allow_anyone,
                     )
                     runner.add(irc_ch)
 
@@ -646,6 +654,7 @@ def main() -> None:
                         verify_token=cfg.whatsapp.verify_token,
                         app_secret=cfg.whatsapp.app_secret,
                         allowed_numbers=cfg.whatsapp.allowed_numbers or None,
+                        allow_anyone=cfg.whatsapp.allow_anyone,
                         webhook_port=cfg.whatsapp.webhook_port,
                         webhook_path=cfg.whatsapp.webhook_path,
                     )
@@ -664,6 +673,7 @@ def main() -> None:
                             jid=cfg.xmpp.jid,
                             password=cfg.xmpp.password,
                             allowed_jids=cfg.xmpp.allowed_jids or None,
+                            allow_anyone=cfg.xmpp.allow_anyone,
                             mucs=cfg.xmpp.mucs or None,
                             muc_nick=cfg.xmpp.muc_nick,
                         )
@@ -751,7 +761,11 @@ def main() -> None:
     if cfg.channel == "sms":
         from palmtop.channels.sms import SmsChannel
 
-        SmsChannel(agent).run(async_init=_async_startup)
+        SmsChannel(
+            agent,
+            allowed_numbers=cfg.sms.allowed_numbers,
+            allow_anyone=cfg.sms.allow_anyone,
+        ).run(async_init=_async_startup)
     else:
         try:
             from palmtop.channels.telegram import TelegramChannel
@@ -783,6 +797,7 @@ def main() -> None:
             cfg.telegram.bot_token,
             agent,
             allowed_users=cfg.telegram.allowed_users or None,
+            allow_anyone=cfg.telegram.allow_anyone,
             stt=stt,
             tts=tts,
             data_dir=cfg.data_dir,
@@ -887,6 +902,7 @@ def main() -> None:
                     agent,
                     allowed_numbers=cfg.sms.allowed_numbers,
                     allowed_sender_names=cfg.sms.allowed_sender_names,
+                    allow_anyone=cfg.sms.allow_anyone,
                     telegram_send_fn=channel.send_message,
                 )
                 sms_listener.start()

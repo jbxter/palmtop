@@ -18,6 +18,8 @@ from typing import TYPE_CHECKING
 
 from nio import AsyncClient, MatrixRoom, RoomMessageText
 
+from palmtop.channels.auth import log_access_policy, sender_allowed
+
 if TYPE_CHECKING:
     from palmtop.core.loop import AgentLoop
 
@@ -42,6 +44,7 @@ class MatrixChannel:
         access_token: str,
         allowed_users: list[str] | None = None,
         allowed_rooms: list[str] | None = None,
+        allow_anyone: bool = False,
     ) -> None:
         if not homeserver:
             raise ValueError("MATRIX_HOMESERVER is required")
@@ -55,6 +58,8 @@ class MatrixChannel:
         self._access_token = access_token
         self._allowed_users = set(allowed_users) if allowed_users else None
         self._allowed_rooms = set(allowed_rooms) if allowed_rooms else None
+        self._allow_anyone = allow_anyone
+        log_access_policy(log, "matrix", self._allowed_users, allow_anyone=allow_anyone)
         self._agent: AgentLoop | None = None
         self._stop_event = asyncio.Event()
         self._client: AsyncClient | None = None
@@ -159,8 +164,8 @@ class MatrixChannel:
         if self._allowed_rooms and room.room_id not in self._allowed_rooms:
             return
 
-        # User filter
-        if self._allowed_users and event.sender not in self._allowed_users:
+        # User filter (fail closed when unconfigured)
+        if not sender_allowed(event.sender, self._allowed_users, allow_anyone=self._allow_anyone):
             log.debug("Matrix message from non-allowed user %s — skipping", event.sender)
             return
 
