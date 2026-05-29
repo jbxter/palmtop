@@ -161,6 +161,12 @@ class TestSmsListenerNumberAuth:
         sl = self._listener(allowed_numbers=["+15551234567"])
         assert sl._rcs_sender_allowed("+15551234567") is True
 
+    def test_rcs_rejects_contact_name_mapped_number_for_auth(self):
+        sl = self._listener(allowed_numbers=["+15551234567"])
+        sl._contacts_loaded = True
+        sl._contacts = {"the owner": "+15551234567"}
+        assert sl._rcs_sender_allowed("The Owner") is False
+
     def test_rcs_rejects_unknown_number_in_title(self):
         sl = self._listener(allowed_numbers=["+15551234567"])
         assert sl._rcs_sender_allowed("+19998887777") is False

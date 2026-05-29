@@ -361,14 +361,12 @@ class SmsListener:
         RCS notifications carry the sender's display name (the notification
         title), which is attacker-controllable, so it must never be the
         authorization token on its own. We authorize only when a phone number
-        can be resolved for the sender — extracted from the title, or mapped
-        via the device's own contacts (the OS labels a sender with a contact
-        name only when their number matches that contact) — and that number is
-        on the allow-list. Fails closed otherwise.
+        can be extracted directly from the notification title and that number
+        is on the allow-list. Fails closed otherwise.
         """
         if self._allow_anyone:
             return True
-        number = self._resolve_sender_number(title)
+        number = self._extract_number(title)
         return bool(number and self._number_allowed(number))
 
     def _resolve_sender_number(self, title: str) -> str | None:
