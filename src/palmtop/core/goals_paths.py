@@ -13,28 +13,39 @@ from pathlib import Path
 # Goal filenames to look for, in priority order.
 _GOALS_FILENAMES = ("twy_goals.json", "goals.json")
 
-# Directories (relative to the project root) searched in order.
-_SEARCH_DIRS = ("docs/plans", "data/docs/plans", "data")
+# Directories are searched relative to the project root and (optionally) a configurable data_dir.
 
 
-def resolve_goals_path(project_root: Path | None = None, explicit: str | Path = "") -> Path:
+def resolve_goals_path(
+    data_dir: Path | None = None,
+    project_root: Path | None = None,
+    explicit: str | Path = "",
+) -> Path:
     """Resolve the active goals file path.
 
-    ``explicit`` wins if provided. Otherwise the first existing file across the
-    known locations is returned; if none exist, the canonical default
-    (``docs/plans/twy_goals.json``) is returned so callers have a stable path to
-    report as missing.
+    ``explicit`` wins if provided. Otherwise searches for goal files in:
+    - <project_root>/docs/plans
+    - <data_dir>/docs/plans
+    - <data_dir>
+
+    If none exist, returns <project_root>/docs/plans/twy_goals.json so callers
+    have a stable path to report as missing.
     """
     if explicit:
         return Path(explicit)
 
     root = Path(project_root) if project_root else Path.cwd()
-    for directory in _SEARCH_DIRS:
+    ddir = Path(data_dir) if data_dir else (root / "data")
+    if not ddir.is_absolute():
+        ddir = root / ddir
+
+    search_dirs = (root / "docs/plans", ddir / "docs/plans", ddir)
+    for directory in search_dirs:
         for name in _GOALS_FILENAMES:
-            candidate = root / directory / name
+            candidate = directory / name
             if candidate.is_file():
                 return candidate
-    return root / _SEARCH_DIRS[0] / _GOALS_FILENAMES[0]
+    return root / "docs/plans" / _GOALS_FILENAMES[0]
 
 
 def goals_cache_path(goals_path: str | Path) -> Path:
