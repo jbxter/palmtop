@@ -167,7 +167,11 @@ def main() -> None:
     if cfg.email.api_key:
         from palmtop.tools.email import EmailTool
 
-        email_tool = EmailTool(cfg.email.api_key, cfg.email.inbox_id)
+        email_tool = EmailTool(
+            cfg.email.api_key,
+            cfg.email.inbox_id,
+            allowed_recipients=cfg.email.allowed_recipients or None,
+        )
         tools.register(email_tool)
         log.info("Email tool registered (init deferred to event loop)")
     else:
