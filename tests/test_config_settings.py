@@ -84,3 +84,30 @@ def test_load_data_dir():
         f.flush()
         cfg = Config.load(Path(f.name))
     assert cfg.data_dir == Path("/tmp/palmtop-test")
+
+
+def test_hermes_config_defaults():
+    """Hermes is off by default and gates skills (fails safe)."""
+    cfg = Config()
+    assert cfg.hermes.enabled is False
+    assert cfg.hermes.require_blessing is True
+    assert cfg.hermes.sync_memory is False
+    assert cfg.hermes.api_url == "http://localhost:8080"
+
+
+def test_load_hermes_from_toml():
+    """[hermes] block should override defaults."""
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".toml", delete=False) as f:
+        f.write('[hermes]\nenabled = true\napi_url = "http://hermes.local:9000"\nsync_memory = true\n')
+        f.flush()
+        cfg = Config.load(Path(f.name))
+    assert cfg.hermes.enabled is True
+    assert cfg.hermes.api_url == "http://hermes.local:9000"
+    assert cfg.hermes.sync_memory is True
+
+
+def test_hermes_api_key_from_env(monkeypatch):
+    """HERMES_API_KEY env var should populate hermes config when unset in TOML."""
+    monkeypatch.setenv("HERMES_API_KEY", "hk-test")
+    cfg = Config.load(None)
+    assert cfg.hermes.api_key == "hk-test"

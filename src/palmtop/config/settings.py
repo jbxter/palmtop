@@ -153,6 +153,33 @@ class CursorConfig:
 
 
 @dataclass
+class HermesConfig:
+    """Hermes Agent bridge — see GitHub issue #22.
+
+    Opt-in integration with Nous Research's Hermes agent runtime. Three layers,
+    each independently switchable:
+      - inference:     use Hermes' OpenAI-compatible endpoint as a backend
+      - memory bridge: sync structured memory with Hermes' persistent store
+                       (Palmtop stays canonical — it wins on conflict)
+      - skills:        import Hermes skills into the tool registry
+
+    SECURITY: imported/auto-created skills are untrusted until a human approves
+    their first mutating action (require_blessing). After that the skill is
+    trusted, but reaching for a newly-seen mutating tool re-triggers approval.
+    """
+
+    enabled: bool = False
+    api_url: str = "http://localhost:8080"
+    api_key: str = ""  # prefer HERMES_API_KEY env var
+    # Memory bridge — Palmtop is the canonical store; Hermes is a synced replica.
+    sync_memory: bool = False
+    sync_interval_minutes: int = 15
+    # Skills
+    import_skills: bool = False
+    require_blessing: bool = True  # gate the first mutating use of an imported skill
+
+
+@dataclass
 class VercelConfig:
     """Vercel deployments — trigger production/preview builds via API."""
 
@@ -326,6 +353,7 @@ class Config:
     alignment: AlignmentConfig = field(default_factory=AlignmentConfig)
     engine: EngineConfig = field(default_factory=EngineConfig)
     cursor: CursorConfig = field(default_factory=CursorConfig)
+    hermes: HermesConfig = field(default_factory=HermesConfig)
     vercel: VercelConfig = field(default_factory=VercelConfig)
     railway: RailwayConfig = field(default_factory=RailwayConfig)
     voice: VoiceConfig = field(default_factory=VoiceConfig)
@@ -464,6 +492,10 @@ class Config:
                 for k, v in raw["cursor"].items():
                     if hasattr(cfg.cursor, k):
                         setattr(cfg.cursor, k, v)
+            if "hermes" in raw:
+                for k, v in raw["hermes"].items():
+                    if hasattr(cfg.hermes, k):
+                        setattr(cfg.hermes, k, v)
             if "vercel" in raw:
                 for k, v in raw["vercel"].items():
                     if hasattr(cfg.vercel, k):
@@ -641,6 +673,10 @@ class Config:
         cursor_key = os.environ.get("CURSOR_API_KEY", "")
         if cursor_key and not cfg.cursor.api_key:
             cfg.cursor.api_key = cursor_key
+
+        hermes_key = os.environ.get("HERMES_API_KEY", "")
+        if hermes_key and not cfg.hermes.api_key:
+            cfg.hermes.api_key = hermes_key
 
         vercel_token = os.environ.get("VERCEL_TOKEN", "")
         if vercel_token and not cfg.vercel.api_token:
