@@ -895,7 +895,7 @@ def main() -> None:
                 log.info("Proactive monitor enabled")
 
             # --- SMS listener (dual-channel, runs alongside Telegram) ---
-            if cfg.sms.enabled and (cfg.sms.allowed_numbers or cfg.sms.allowed_sender_names):
+            if cfg.sms.enabled and (cfg.sms.allowed_numbers or cfg.sms.allowed_sender_names or cfg.sms.allow_anyone):
                 from palmtop.channels.sms_listener import SmsListener
 
                 sms_listener = SmsListener(
