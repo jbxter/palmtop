@@ -180,7 +180,7 @@ class GoalAligner:
 
         try:
             raw = json.loads(path.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError):
+        except (json.JSONDecodeError, UnicodeDecodeError, OSError):
             cached = self._read_cache()
             if cached is not None:
                 goals = _extract_goals(cached)
@@ -199,7 +199,7 @@ class GoalAligner:
         cache = goals_cache_path(self._goals_path)
         try:
             return json.loads(cache.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError):
+        except (json.JSONDecodeError, UnicodeDecodeError, OSError):
             return None
 
     def _write_cache(self, raw: object) -> None:
