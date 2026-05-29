@@ -229,3 +229,24 @@ class TestOwnerGate:
         loop = self._loop(set())
         reply = await loop.handle("engine: do x", user_id="sms:+15551234567")
         assert "Not authorized" in reply
+
+
+class TestTelegramApprovalOwner:
+    """/approve and /deny are restricted to owners when owners are set (#31)."""
+
+    def _channel(self, owner_ids):
+        pytest.importorskip("telegram")
+        from palmtop.channels.telegram import TelegramChannel
+
+        return TelegramChannel("123:abc", MagicMock(), allowed_users=[123], owner_ids=owner_ids)
+
+    def test_owner_only_when_owners_configured(self):
+        ch = self._channel({"telegram:123"})
+        assert ch._can_approve(123) is True
+        assert ch._can_approve(999) is False  # admitted by allow-list, but not an owner
+
+    def test_falls_back_to_allowlist_when_no_owners(self):
+        # No owners configured → defer to the channel allow-list (caller-enforced).
+        ch = self._channel(set())
+        assert ch._can_approve(123) is True
+        assert ch._can_approve(999) is True

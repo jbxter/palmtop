@@ -526,6 +526,7 @@ def main() -> None:
                     tts=tts,
                     data_dir=cfg.data_dir,
                     blessing_gate=blessing_gate,
+                    owner_ids=set(cfg.agent.owners),
                 )
                 runner.add(tg)
 
@@ -803,6 +804,7 @@ def main() -> None:
             tts=tts,
             data_dir=cfg.data_dir,
             blessing_gate=blessing_gate,
+            owner_ids=set(cfg.agent.owners),
         )
         reminders.set_notify(channel.send_message)
         # Wire send_fn for blessing gate + Cursor completion notifications

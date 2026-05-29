@@ -11,6 +11,9 @@ services:
       # Pass DOTENV_KEY for encrypted secrets (from .env.keys or CI secret)
       - DOTENV_KEY=${DOTENV_KEY:-}
     ports:
+      # /health binds loopback by default (it's unauthenticated). To reach it
+      # from outside the container via this mapping, set [admin] host = "0.0.0.0"
+      # in config.toml — ideally with [admin] token set too.
       - "8000:8000"
     restart: unless-stopped
 

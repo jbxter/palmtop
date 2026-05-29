@@ -14,7 +14,7 @@ from telegram.constants import ChatAction, ParseMode
 from telegram.error import Forbidden, TimedOut
 from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
 
-from palmtop.channels.auth import log_access_policy, sender_allowed
+from palmtop.channels.auth import log_access_policy, owner_key, sender_allowed
 
 if TYPE_CHECKING:
     from palmtop.core.loop import AgentLoop
@@ -202,12 +202,14 @@ class TelegramChannel:
         tts=None,
         data_dir=None,
         blessing_gate=None,
+        owner_ids: set[str] | None = None,
     ) -> None:
         if not bot_token:
             raise ValueError("TELEGRAM_BOT_TOKEN is required")
         self._agent = agent
         self._allowed_users = set(allowed_users) if allowed_users else None
         self._allow_anyone = allow_anyone
+        self._owner_ids = owner_ids or set()
         log_access_policy(log, "telegram", self._allowed_users, allow_anyone=allow_anyone)
         self._stt = stt
         self._tts = tts
@@ -271,11 +273,26 @@ class TelegramChannel:
             await update.message.reply_text("🔊 Voice replies on — I'll send audio with every response.")
             log.info("Voice mode ON for user %s", uid)
 
+    def _can_approve(self, uid: int | None) -> bool:
+        """Whether this sender may approve/deny a blessing request.
+
+        When owners are configured ([agent] owners), only an owner may approve —
+        a blessing must not be self-approved by just any admitted channel user.
+        With no owners configured, fall back to the channel allow-list (the
+        caller already enforced it).
+        """
+        if not self._owner_ids:
+            return True
+        return owner_key(str(uid), "telegram") in self._owner_ids
+
     async def _on_approve(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Approve a pending engine/cursor blessing request."""
         user = update.effective_user
         uid = user.id if user else None
         if not sender_allowed(uid, self._allowed_users, allow_anyone=self._allow_anyone):
+            return
+        if not self._can_approve(uid):
+            await update.message.reply_text("Only the configured owner can approve.")
             return
         log.info(
             "/approve from %s (gate pending: %s)",
@@ -293,6 +310,9 @@ class TelegramChannel:
         user = update.effective_user
         uid = user.id if user else None
         if not sender_allowed(uid, self._allowed_users, allow_anyone=self._allow_anyone):
+            return
+        if not self._can_approve(uid):
+            await update.message.reply_text("Only the configured owner can deny.")
             return
         log.info(
             "/deny from %s (gate pending: %s)",

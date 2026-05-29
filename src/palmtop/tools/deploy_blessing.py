@@ -22,8 +22,15 @@ async def request_deploy_blessing(
     summary: str,
 ) -> bool:
     """Send approval prompt to Telegram and block until /approve or /deny."""
-    if not gate or not send_fn:
+    # gate is None when the deploy tool was configured with require_blessing=false
+    # — an explicit opt-out, so proceed.
+    if gate is None:
         return True
+    # Blessing IS required but there's no channel to ask on — fail closed (deny)
+    # rather than silently approving an unapproved deploy.
+    if send_fn is None:
+        log.error("%s deploy requires approval but no approval channel is wired — denying", platform)
+        return False
 
     # Arm the gate BEFORE prompting so /approve can't arrive before wait() starts.
     gate.prepare(summary)

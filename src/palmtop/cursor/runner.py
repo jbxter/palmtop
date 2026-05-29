@@ -207,7 +207,28 @@ class CursorJobManager:
                 "Wait for one to finish."
             )
 
-        if self._cfg.require_blessing and self._blessing_gate and self._send_fn:
+        if self._cfg.require_blessing:
+            # Fail closed: if approval is required but we have no way to ask
+            # (gate or notify channel missing), refuse — never launch unapproved.
+            if not self._blessing_gate or not self._send_fn:
+                log.error(
+                    "Cursor requires approval but no approval channel is available "
+                    "(gate=%s, send_fn=%s) — refusing to launch",
+                    bool(self._blessing_gate),
+                    bool(self._send_fn),
+                )
+                append_cursor_audit(
+                    self._data_dir,
+                    {
+                        "ts": datetime.now(UTC).isoformat(),
+                        "user_id": user_id,
+                        "status": "refused_no_approval_channel",
+                        "repo": repo_url,
+                        "branch": branch,
+                        "prompt": prompt[:500],
+                    },
+                )
+                return "Cursor job refused — approval is required but no approval channel is configured."
             risk = assess_risk(prompt)
             align = alignment or {"is_aligned": True, "score": 1.0, "matched_tags": []}
             summary = (
@@ -299,7 +320,9 @@ class CursorJobManager:
         gate = self._blessing_gate
         send_fn = self._send_fn
         if not gate or not send_fn:
-            return True
+            # Defensive: the caller already guarantees both are present when
+            # blessing is required. If we ever get here, fail closed (deny).
+            return False
 
         # Prepare the gate FIRST so is_pending is True before the user
         # can reply.  This fixes the race where /approve arrived before

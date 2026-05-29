@@ -64,6 +64,23 @@ async def test_launch_rejects_disallowed_repo(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
+async def test_launch_refuses_when_blessing_required_but_no_channel(tmp_path: Path) -> None:
+    """require_blessing=True with no gate/notify channel must fail closed (#31)."""
+    client = MagicMock()
+    client.create_agent = AsyncMock()
+    cfg = CursorConfig(
+        enabled=True,
+        allowed_repos=["https://github.com/org/repo"],
+        default_repo="https://github.com/org/repo",
+        require_blessing=True,
+    )
+    mgr = CursorJobManager(client, cfg, tmp_path, blessing_gate=None)  # no gate, no send_fn
+    reply = await mgr.launch("ship to production", user_id="u1")
+    assert "refused" in reply.lower()
+    client.create_agent.assert_not_called()
+
+
+@pytest.mark.asyncio
 async def test_launch_writes_audit_and_tracks_job(tmp_path: Path) -> None:
     client = MagicMock()
     client.close = AsyncMock()

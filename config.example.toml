@@ -79,7 +79,10 @@ accent_dim = "#c49a20"
 [admin]
 enabled = true         # /health endpoint for Docker healthcheck + uptime monitors
 # token = ""          # Set a bearer token to enable /admin/stats (empty = disabled)
-# host = "0.0.0.0"
+# host = "127.0.0.1"  # SECURITY: loopback by default — /health is unauthenticated
+#                     # and leaks uptime/channels/DB sizes. The in-container Docker
+#                     # HEALTHCHECK still works (localhost). Set "0.0.0.0" to expose
+#                     # to the LAN / external uptime monitors (and set a token).
 # port = 8000         # Shares port with web channel if both are enabled
 
 [inference]
@@ -275,8 +278,10 @@ use_semantic = true     # Ollama judges tasks that fail keyword match (localhost
 # the owner(s) listed here, regardless of which channel admits the sender.
 # IDs are channel-qualified (the same form channels log for a sender):
 #   telegram:<numeric user id>   sms:+<E.164 number>   slack:U0123   discord:<id>
+# When set, owners also gate who may /approve or /deny a pending action — an
+# action can't be self-approved by just any admitted user.
 # SECURITY: if this list is empty, engine: / cursor: are refused on EVERY
-# channel (fail closed). Set it to use those commands.
+# channel (fail closed), and /approve falls back to the channel allow-list.
 [agent]
 owners = []
 # owners = ["telegram:123456789", "sms:+15551234567"]

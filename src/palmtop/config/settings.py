@@ -233,7 +233,11 @@ class AdminConfig:
 
     enabled: bool = True  # /health always on for Docker healthcheck
     token: str = ""  # bearer token for /admin/* routes (empty = admin disabled)
-    host: str = "0.0.0.0"
+    # Bind loopback by default — /health is unauthenticated and leaks uptime,
+    # channel names, message counts, and DB sizes. The in-container Docker
+    # HEALTHCHECK hits localhost, so it still works. Set 0.0.0.0 to expose it to
+    # the LAN/uptime monitors (pair with a token).
+    host: str = "127.0.0.1"
     port: int = 8000
 
 

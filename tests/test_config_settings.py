@@ -14,6 +14,21 @@ def test_default_config_loads_without_file():
     assert cfg.channel in ("telegram", "sms")
 
 
+def test_admin_host_defaults_to_loopback():
+    """/health is unauthenticated, so the admin server must bind loopback by default (#30)."""
+    assert Config().admin.host == "127.0.0.1"
+    assert Config.load(Path("/nonexistent/config.toml")).admin.host == "127.0.0.1"
+
+
+def test_admin_host_override_from_toml():
+    """Operators can still opt into a broader bind explicitly."""
+    with tempfile.NamedTemporaryFile("w", suffix=".toml", delete=False) as f:
+        f.write('[admin]\nhost = "0.0.0.0"\n')
+        path = Path(f.name)
+    cfg = Config.load(path)
+    assert cfg.admin.host == "0.0.0.0"
+
+
 def test_detect_runtime_dev(monkeypatch):
     """Without TERMUX_VERSION, runtime should be 'dev'."""
     monkeypatch.delenv("TERMUX_VERSION", raising=False)
