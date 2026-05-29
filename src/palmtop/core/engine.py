@@ -48,6 +48,7 @@ class PalmtopAgent:
         self._project_root = project_root
         self._data_dir = data_dir
         self.aligner = aligner or GoalAligner(goals_path, use_semantic=False, autonomous=autonomous)
+
     # ── Orchestration ──────────────────────────────────────────────────────────
 
     def orchestrate(self, task: str, interactive: bool = False) -> str | None:

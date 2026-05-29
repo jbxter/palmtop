@@ -60,6 +60,7 @@ class Tracer:
         self._enabled = enabled
         self._backend = backend
         self._data_dir = data_dir
+
     @property
     def enabled(self) -> bool:
         return self._enabled

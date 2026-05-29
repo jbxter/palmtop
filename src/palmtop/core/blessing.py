@@ -100,7 +100,9 @@ def build_approval_summary(
         aligned = alignment.get("is_aligned", True)
         score = alignment.get("score")
         tags = alignment.get("matched_tags") or []
-        if isinstance(score, (int, float)):
+        align_line = f"Goal-aligned: {'yes' if aligned else 'no'}"
+        if isinstance(score, int | float):
+            align_line += f" (score {score:.2f})"
         if tags:
             align_line += " — " + ", ".join(str(t) for t in tags)
         lines.append(align_line)
