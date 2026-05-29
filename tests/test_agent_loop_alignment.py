@@ -11,9 +11,8 @@ import pytest
 pytest.importorskip("palmtop.core.goal_aligner")
 
 from palmtop.core.goal_aligner import GoalAligner
-from palmtop.core.tracing import Tracer
-
 from palmtop.core.loop import AgentLoop
+from palmtop.core.tracing import Tracer
 
 
 @pytest.fixture

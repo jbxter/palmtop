@@ -9,10 +9,9 @@ import pytest
 
 pytest.importorskip("palmtop.core.loop")
 
+from palmtop.core.loop import AgentLoop
 from palmtop.core.orchestration import OrchestrationResult
 from palmtop.core.sovereign_runner import parse_engine_task, run_sovereign_engine
-
-from palmtop.core.loop import AgentLoop
 
 
 def test_parse_engine_task_prefixes() -> None:
