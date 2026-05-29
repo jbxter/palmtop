@@ -56,9 +56,10 @@ class Trace:
 
 
 class Tracer:
-    def __init__(self, enabled: bool = False) -> None:
+    def __init__(self, enabled: bool = False, backend: str | None = None, data_dir: object | None = None) -> None:
         self._enabled = enabled
-
+        self._backend = backend
+        self._data_dir = data_dir
     @property
     def enabled(self) -> bool:
         return self._enabled
