@@ -295,8 +295,9 @@ owners = []
 #   /claude draft poster copy        (Telegram alias — same as /engine)
 #   engine: draft poster copy        (Telegram or SMS)
 #   claude: draft poster copy        (alias)
-# Headless CLI (no interactive channel):
-#   PALMTOP_AUTONOMOUS=1 uv run python -m palmtop.engine --task "your task"
+# Headless CLI (no interactive channel) — autonomous is below the safety floor,
+# so the operator must opt in (see .env.example "Safety floor"):
+#   PALMTOP_ALLOW_AUTONOMOUS=1 PALMTOP_AUTONOMOUS=1 uv run python -m palmtop.engine --task "your task"
 
 [engine]
 enabled = true   # uses cloud backends (ANTHROPIC_API_KEY or GOOGLE_API_KEY)

@@ -202,7 +202,11 @@ class CursorJobManager:
         *,
         user_id: str = "default",
         alignment: dict | None = None,
+        force_approval: bool = False,
     ) -> str:
+        # force_approval requires human /approve regardless of [cursor]
+        # require_blessing — used when the trigger is untrusted (e.g. a Jira
+        # ticket whose label/content the agent doesn't control; issue #46).
         if not self._cfg.enabled:
             return "Cursor bridge is disabled. Set [cursor] enabled = true in config.toml."
 
@@ -219,7 +223,7 @@ class CursorJobManager:
             return f"Invalid branch/ref: {branch!r}"
         # An unreviewed ref of an allowed repo can still carry malicious code, so
         # only the default branch may run autonomously; other refs need approval.
-        if branch != self._cfg.default_branch and not self._cfg.require_blessing:
+        if branch != self._cfg.default_branch and not (self._cfg.require_blessing or force_approval):
             return (
                 f"Refused — autonomous runs (require_blessing=false) are limited to the default "
                 f"branch '{self._cfg.default_branch}'; requested '{branch}'. Enable require_blessing "
@@ -232,7 +236,7 @@ class CursorJobManager:
                 "Wait for one to finish."
             )
 
-        if self._cfg.require_blessing:
+        if self._cfg.require_blessing or force_approval:
             # Fail closed: if approval is required but we have no way to ask
             # (gate or notify channel missing), refuse — never launch unapproved.
             if not self._blessing_gate or not self._send_fn:

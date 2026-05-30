@@ -148,7 +148,10 @@ class JiraCursorBridge:
         prompt = build_cursor_prompt(issue)
         log.info("Auto-delegating %s to Cursor: %s", issue_key, issue.get("summary", "")[:80])
 
-        result = await self._cursor.launch(prompt, user_id=self._user_id)
+        # The trigger is an untrusted Jira ticket (anyone who can label a ticket
+        # could fire this), so always require human /approve, regardless of the
+        # global [cursor] require_blessing setting (issue #46).
+        result = await self._cursor.launch(prompt, user_id=self._user_id, force_approval=True)
         self._delegated_keys.add(issue_key)
 
         # Notify user
