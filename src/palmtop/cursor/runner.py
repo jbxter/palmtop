@@ -40,6 +40,19 @@ def parse_cursor_task(text: str) -> str | None:
 _REPO_RE = re.compile(r"^repo=(\S+)(?:\s+branch=(\S+))?\s+", re.I)
 _BRANCH_RE = re.compile(r"^branch=(\S+)\s+", re.I)
 
+# Conservative git ref validation — the branch flows to the Cursor API as
+# startingRef, so reject malformed/injection-y refs before they leave.
+_REF_RE = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9._/-]{0,254})$")
+
+
+def _valid_ref(ref: str) -> bool:
+    """True if `ref` is a safe-looking git branch/tag/SHA."""
+    if not ref or ref != ref.strip():
+        return False
+    if ".." in ref or "@{" in ref or ref.endswith("/") or ref.endswith(".lock"):
+        return False
+    return bool(_REF_RE.match(ref))
+
 
 def parse_cursor_query(query: str, cfg: CursorConfig) -> tuple[str, str, str]:
     """Parse tool/command query into (repo_url, branch, prompt)."""
@@ -200,6 +213,18 @@ class CursorJobManager:
             return "No repository configured. Set [cursor] default_repo or pass repo=<url>."
         if not repo_allowed(repo_url, self._cfg.allowed_repos):
             return f"Repository not allowed: {repo_url}"
+
+        # Validate the ref (repo is allow-listed, but the branch wasn't checked).
+        if not _valid_ref(branch):
+            return f"Invalid branch/ref: {branch!r}"
+        # An unreviewed ref of an allowed repo can still carry malicious code, so
+        # only the default branch may run autonomously; other refs need approval.
+        if branch != self._cfg.default_branch and not self._cfg.require_blessing:
+            return (
+                f"Refused — autonomous runs (require_blessing=false) are limited to the default "
+                f"branch '{self._cfg.default_branch}'; requested '{branch}'. Enable require_blessing "
+                f"to run other refs behind /approve."
+            )
 
         if self.active_count >= self._cfg.max_concurrent:
             return (

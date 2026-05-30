@@ -244,7 +244,8 @@ n_threads = 4
 
 # 12 Week Year (12WY Reports on Railway) — built-in REST gateway, no extra deps.
 # Set env vars on the S21 (recommended) or fill [twelvewy] below:
-#   TWELVEWY_API_BASE_URL  — Railway APP_URL (https://your-app.up.railway.app)
+#   TWELVEWY_API_BASE_URL  — Railway APP_URL — MUST be https:// (the API key is
+#                            sent as a bearer token; non-https is refused)
 #   TWELVEWY_API_KEY       — from: uv run python scripts/create_api_key.py (in 12wy repo)
 #
 # [twelvewy]

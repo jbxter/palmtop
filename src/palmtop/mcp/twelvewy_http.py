@@ -24,6 +24,11 @@ def _base_url() -> str:
     url = _override_base or (os.environ.get("TWELVEWY_API_BASE_URL") or "").strip().rstrip("/")
     if not url:
         raise ValueError("TWELVEWY_API_BASE_URL is not set")
+    # The API key is sent as a bearer token to this URL, so refuse anything that
+    # isn't https:// — prevents leaking the key over plaintext or to a
+    # scheme-confused/misconfigured target.
+    if not url.lower().startswith("https://"):
+        raise ValueError(f"TWELVEWY_API_BASE_URL must be an https:// URL (got {url!r}) — refusing to send the API key")
     return url
 
 

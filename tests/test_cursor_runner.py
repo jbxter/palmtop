@@ -135,3 +135,54 @@ def test_append_cursor_audit(tmp_path: Path) -> None:
     lines = (tmp_path / "cursor_jobs.jsonl").read_text(encoding="utf-8").strip().splitlines()
     assert len(lines) == 1
     assert json.loads(lines[0])["agent_id"] == "bc-1"
+
+
+def test_valid_ref() -> None:
+    from palmtop.cursor.runner import _valid_ref
+
+    assert _valid_ref("main")
+    assert _valid_ref("feature/new-thing")
+    assert _valid_ref("release/1.2.3")
+    assert _valid_ref("a1b2c3d4e5")
+    assert not _valid_ref("")
+    assert not _valid_ref("-evil")
+    assert not _valid_ref("a..b")
+    assert not _valid_ref("foo/")
+    assert not _valid_ref("br@{0}")
+    assert not _valid_ref("a b")
+    assert not _valid_ref("x.lock")
+
+
+@pytest.mark.asyncio
+async def test_launch_rejects_invalid_ref(tmp_path: Path) -> None:
+    """Branch flows to the Cursor API as startingRef — reject malformed refs (#36)."""
+    client = MagicMock()
+    client.create_agent = AsyncMock()
+    cfg = CursorConfig(
+        enabled=True,
+        allowed_repos=["https://github.com/org/repo"],
+        default_repo="https://github.com/org/repo",
+        require_blessing=False,
+    )
+    mgr = CursorJobManager(client, cfg, tmp_path, blessing_gate=None)
+    reply = await mgr.launch("repo=https://github.com/org/repo branch=bad..ref do it", user_id="u1")
+    assert "Invalid branch" in reply
+    client.create_agent.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_launch_refuses_nondefault_branch_when_autonomous(tmp_path: Path) -> None:
+    """Autonomous (require_blessing=false) runs are limited to the default branch (#36)."""
+    client = MagicMock()
+    client.create_agent = AsyncMock()
+    cfg = CursorConfig(
+        enabled=True,
+        allowed_repos=["https://github.com/org/repo"],
+        default_repo="https://github.com/org/repo",
+        default_branch="main",
+        require_blessing=False,
+    )
+    mgr = CursorJobManager(client, cfg, tmp_path, blessing_gate=None)
+    reply = await mgr.launch("repo=https://github.com/org/repo branch=feature/x do it", user_id="u1")
+    assert "Refused" in reply
+    client.create_agent.assert_not_called()
