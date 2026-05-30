@@ -20,12 +20,41 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
+import re
 import shutil
 from dataclasses import dataclass, field
 
 from palmtop.tools.base import Tool
 
 log = logging.getLogger(__name__)
+
+# Environment variables safe to pass through to an MCP server subprocess. The
+# process otherwise inherits the agent's ENTIRE environment — including every
+# API key/channel token. It now gets only this baseline plus the secrets the
+# operator explicitly granted in its [[mcp.servers]] env (least privilege; #49).
+_SAFE_ENV_PASSTHROUGH = frozenset(
+    {
+        "PATH", "HOME", "USER", "LOGNAME", "SHELL", "PWD", "TZ", "TERM",
+        "TMPDIR", "TEMP", "TMP",
+        "LANG", "LANGUAGE", "LC_ALL", "LC_CTYPE",
+        "VIRTUAL_ENV", "PYTHONPATH", "PYTHONHOME", "PYTHONUNBUFFERED", "PYTHONIOENCODING",
+        # Termux / Android so binaries resolve on a phone
+        "PREFIX", "LD_LIBRARY_PATH", "LD_PRELOAD", "ANDROID_DATA", "ANDROID_ROOT",
+        "TERMUX_VERSION",
+    }
+)  # fmt: skip
+
+# Strip the agent's own tool-call control syntax from (untrusted) MCP output so
+# a malicious/compromised server can't inject tool calls into the agent context.
+_INJECTION_STRIP = re.compile(r"\[TOOL:\w+\]|\[ACTION:\w+\]|\[ON_FAIL:\w+\]", re.IGNORECASE)
+
+
+def _scoped_env(extra: dict[str, str] | None) -> dict[str, str]:
+    """Least-privilege environment for an MCP subprocess: safe baseline + grants."""
+    base = {k: v for k, v in os.environ.items() if k in _SAFE_ENV_PASSTHROUGH or k.startswith("LC_")}
+    base.update(extra or {})
+    return base
 
 
 def check_mcp_prerequisites(command: list[str]) -> str | None:
@@ -85,10 +114,11 @@ class MCPClient:
         if prereq_error:
             raise RuntimeError(f"MCP '{self._config.name}' can't start: {prereq_error}")
 
-        import os
         import sys
 
-        env = {**os.environ, **self._config.env}
+        # Least privilege: don't hand the agent's whole environment (every API
+        # key) to the MCP server — only a safe baseline + its explicit env (#49).
+        env = _scoped_env(self._config.env)
 
         # Replace bare "python" with sys.executable so the subprocess uses
         # the same interpreter/venv that's running the agent
@@ -171,6 +201,8 @@ class MCPClient:
                 texts.append(item["text"])
 
         response = "\n".join(texts) if texts else json.dumps(result, indent=2)
+        # MCP server output is untrusted — strip the agent's tool-call syntax (#49).
+        response = _INJECTION_STRIP.sub("", response)
 
         if result.get("isError"):
             log.warning("MCP tool %s returned error: %s", tool_name, response[:200])
