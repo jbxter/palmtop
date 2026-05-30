@@ -31,6 +31,17 @@ _ALLOWED_EXTENSIONS = {
 # Max file size the agent can write (64 KB — plenty for docs, safe for memory)
 _MAX_WRITE_BYTES = 65_536
 
+# Files the agent must never touch via this tool — the 12WY alignment goals and
+# their last-good cache. They can live under data_dir/docs (inside this sandbox),
+# so without this denylist the agent could rewrite its own alignment guard
+# (issue #25). Names mirror core/goals_paths (_GOALS_FILENAMES + .<stem>.cache.json).
+_PROTECTED_NAMES = {
+    "twy_goals.json",
+    "goals.json",
+    ".twy_goals.cache.json",
+    ".goals.cache.json",
+}
+
 # Max files returned from list/search
 _MAX_LIST = 50
 
@@ -77,6 +88,11 @@ class FileTool(Tool):
 
         # Check extension
         if resolved.suffix.lower() not in _ALLOWED_EXTENSIONS:
+            return None
+
+        # Never expose the alignment goals / cache through this tool (#25)
+        if resolved.name in _PROTECTED_NAMES:
+            log.warning("FileTool refused protected path: %s", resolved.name)
             return None
 
         return resolved

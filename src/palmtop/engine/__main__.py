@@ -53,8 +53,34 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     cfg = Config.load(args.config if args.config.exists() else None)
+
+    # Safety floor (issue #25): clamp config to the minimum guardrail policy and
+    # refuse --autonomous unless an operator marker permits it. The floor is from
+    # code defaults + env the agent can't set on a process it doesn't launch.
+    from palmtop.core.safety import SafetyFloor, audit_safety, clamp_config, goals_path_is_agent_writable
+
+    floor = SafetyFloor.load()
+    clamps = clamp_config(cfg, floor)
+    if clamps:
+        audit_safety(cfg.data_dir, {"event": "config_clamp", "clamps": clamps, "allow_unsafe": floor.allow_unsafe})
+    if autonomous and not floor.autonomous_permitted():
+        print(
+            "Refusing --autonomous / PALMTOP_AUTONOMOUS: not permitted by the safety floor. "
+            "Set PALMTOP_ALLOW_AUTONOMOUS=1 (or PALMTOP_ALLOW_UNSAFE=1) to run autonomously.",
+            file=sys.stderr,
+        )
+        audit_safety(cfg.data_dir, {"event": "autonomous_refused"})
+        return 1
+
     root = Path(".").resolve()
     goals = args.goals or resolve_goals_path(cfg.data_dir, root)
+    if goals_path_is_agent_writable(goals, cfg.data_dir):
+        print(
+            f"SAFETY: goals at {goals} sit inside the agent-writable docs sandbox; "
+            "move them to docs/plans (outside data_dir).",
+            file=sys.stderr,
+        )
+        audit_safety(cfg.data_dir, {"event": "goals_in_sandbox", "path": str(goals)})
 
     # Build cloud LLM from configured backends
     from palmtop.inference.engine_llm import CloudLLMAdapter

@@ -186,3 +186,35 @@ async def test_launch_refuses_nondefault_branch_when_autonomous(tmp_path: Path) 
     reply = await mgr.launch("repo=https://github.com/org/repo branch=feature/x do it", user_id="u1")
     assert "Refused" in reply
     client.create_agent.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_force_approval_requires_channel_even_without_require_blessing(tmp_path: Path) -> None:
+    """force_approval=True must route through approval even if require_blessing=false (#46)."""
+    client = MagicMock()
+    client.create_agent = AsyncMock()
+    cfg = CursorConfig(
+        enabled=True,
+        allowed_repos=["https://github.com/org/repo"],
+        default_repo="https://github.com/org/repo",
+        require_blessing=False,  # global gate off...
+    )
+    mgr = CursorJobManager(client, cfg, tmp_path, blessing_gate=None)  # ...and no approval channel
+    reply = await mgr.launch("do something", user_id="u1", force_approval=True)
+    assert "refused" in reply.lower()
+    client.create_agent.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_jira_bridge_forces_approval(tmp_path: Path) -> None:
+    """The untrusted Jira→Cursor trigger always requires approval (#46)."""
+    from palmtop.cursor.jira_bridge import JiraCursorBridge
+
+    cursor = MagicMock()
+    cursor.launch = AsyncMock(return_value="launched")
+    bridge = JiraCursorBridge(MagicMock(), cursor, user_id="owner")
+    bridge._read_issue = AsyncMock(return_value={"key": "X-1", "summary": "fix bug", "labels": ["cursor"]})
+
+    await bridge.evaluate_and_delegate("X-1")
+    cursor.launch.assert_called_once()
+    assert cursor.launch.call_args.kwargs.get("force_approval") is True

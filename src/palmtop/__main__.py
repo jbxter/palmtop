@@ -128,6 +128,17 @@ def main() -> None:
     cfg = Config.load(config_path)
     log.info("Runtime: %s | Channel: %s", cfg.runtime, cfg.channel)
 
+    # ── Safety floor: clamp the effective config so the agent can't run below
+    # the minimum guardrail policy (issue #25). The floor comes from secure code
+    # defaults + operator env (PALMTOP_FLOOR_* / PALMTOP_ALLOW_UNSAFE), which the
+    # agent's own tools can't write — so guardrails can't be self-disabled.
+    from palmtop.core.safety import SafetyFloor, audit_safety, clamp_config, goals_path_is_agent_writable
+
+    _floor = SafetyFloor.load()
+    _clamps = clamp_config(cfg, _floor)
+    if _clamps:
+        audit_safety(cfg.data_dir, {"event": "config_clamp", "clamps": _clamps, "allow_unsafe": _floor.allow_unsafe})
+
     local_backend = LocalBackend(cfg.inference)
 
     # ── Create stores (sync constructors only — .init() deferred) ────
@@ -293,6 +304,15 @@ def main() -> None:
         goals_path = Path(cfg.alignment.goals_path)
     else:
         goals_path = resolve_goals_path(cfg.data_dir, project_root)
+
+    if goals_path_is_agent_writable(goals_path, cfg.data_dir):
+        log.warning(
+            "SAFETY: alignment goals at %s sit inside the agent-writable docs sandbox. "
+            "The files tool is blocked from rewriting them, but for defense in depth move "
+            "goals to docs/plans (outside data_dir).",
+            goals_path,
+        )
+        audit_safety(cfg.data_dir, {"event": "goals_in_sandbox", "path": str(goals_path)})
 
     # Build the engine LLM from cloud backends (heavy preferred, light fallback)
     from palmtop.inference.engine_llm import CloudLLMAdapter
