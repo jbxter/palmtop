@@ -19,10 +19,12 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import shutil
 import sqlite3
 import tarfile
 from datetime import UTC, datetime
+from io import BytesIO
 from pathlib import Path
 
 log = logging.getLogger(__name__)
@@ -35,6 +37,71 @@ DB_FILES = [
     "knowledge.db",
     "reminders.db",
 ]
+
+# Suffix marking an encrypted backup/export artifact (issue #48).
+ENC_SUFFIX = ".enc"
+
+
+def _db_key() -> str:
+    return os.environ.get("PALMTOP_DB_KEY", "").strip()
+
+
+def _fernet(passphrase: str):
+    """Build a Fernet from PALMTOP_DB_KEY (any passphrase → derived 32-byte key)."""
+    try:
+        from cryptography.fernet import Fernet
+    except ModuleNotFoundError as e:
+        raise RuntimeError(
+            "Backup/export encryption needs the 'cryptography' package. Install it with "
+            "`uv sync --extra encryption` (or `pkg install python-cryptography` on Termux)."
+        ) from e
+    import base64
+    import hashlib
+
+    key = base64.urlsafe_b64encode(hashlib.sha256(passphrase.encode()).digest())
+    return Fernet(key)
+
+
+def _encrypt_to(path: Path) -> Path:
+    """Encrypt `path` in place when PALMTOP_DB_KEY is set; return the (new) path.
+
+    With no key set the artifact is left plaintext and a warning is logged — so
+    existing workflows keep working, but the operator is told it's unencrypted.
+    """
+    key = _db_key()
+    if not key:
+        log.warning(
+            "PALMTOP_DB_KEY not set — %s is UNENCRYPTED. Set it to encrypt backups/exports.",
+            path.name,
+        )
+        return path
+    token = _fernet(key).encrypt(path.read_bytes())
+    enc_path = path.with_name(path.name + ENC_SUFFIX)
+    enc_path.write_bytes(token)
+    path.unlink()
+    log.info("Encrypted: %s", enc_path.name)
+    return enc_path
+
+
+def _read_maybe_encrypted(path: Path) -> bytes:
+    """Read `path`, transparently decrypting it if it's an encrypted artifact.
+
+    Fails closed: an encrypted file with no/incorrect key raises rather than
+    silently producing garbage.
+    """
+    raw = path.read_bytes()
+    if not path.name.endswith(ENC_SUFFIX):
+        return raw
+    key = _db_key()
+    if not key:
+        raise RuntimeError(f"{path.name} is encrypted — set PALMTOP_DB_KEY to restore it.")
+    fernet = _fernet(key)  # raises a clear error if cryptography is missing
+    from cryptography.fernet import InvalidToken
+
+    try:
+        return fernet.decrypt(raw)
+    except InvalidToken as e:
+        raise RuntimeError("Decryption failed — wrong PALMTOP_DB_KEY?") from e
 
 
 def create_backup(
@@ -85,6 +152,10 @@ def create_backup(
         # Clean up temp dir
         shutil.rmtree(tmp_dir, ignore_errors=True)
 
+    # Encrypt at rest if a key is configured (issue #48) — backups are the
+    # artifact most likely to leave the device's storage encryption.
+    archive_path = _encrypt_to(archive_path)
+
     size_mb = archive_path.stat().st_size / (1024 * 1024)
     log.info("Backup created: %s (%.2f MB, %d databases)", archive_path, size_mb, len(db_files))
 
@@ -111,7 +182,9 @@ def restore_backup(archive_path: Path, data_dir: Path) -> list[str]:
     data_dir.mkdir(parents=True, exist_ok=True)
     restored: list[str] = []
 
-    with tarfile.open(archive_path, "r:gz") as tar:
+    # Transparently decrypt if the archive is encrypted (#48).
+    raw = _read_maybe_encrypted(archive_path)
+    with tarfile.open(fileobj=BytesIO(raw), mode="r:gz") as tar:
         # Security: only extract known DB files
         filter_kwarg = {"filter": "data"} if hasattr(tarfile, "data_filter") else {}
         for member in tar.getmembers():
@@ -194,6 +267,7 @@ def export_json(data_dir: Path, output_path: Path | None = None) -> Path:
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(json.dumps(export_data, indent=2, default=str))
+    output_path = _encrypt_to(output_path)  # encrypt at rest if PALMTOP_DB_KEY set (#48)
     n_mem, n_conv, n_plans = len(export_data["memories"]), len(export_data["conversations"]), len(export_data["plans"])
     log.info("Exported to %s (%d memories, %d messages, %d plans)", output_path, n_mem, n_conv, n_plans)
     return output_path
@@ -212,7 +286,7 @@ def import_json(json_path: Path, data_dir: Path) -> dict[str, int]:
     if not json_path.exists():
         raise FileNotFoundError(f"Import file not found: {json_path}")
 
-    data = json.loads(json_path.read_text())
+    data = json.loads(_read_maybe_encrypted(json_path).decode("utf-8"))
     counts: dict[str, int] = {"memories": 0, "conversations": 0, "plans": 0}
 
     # Import memories
@@ -257,7 +331,7 @@ def _safe_copy_db(src: Path, dst: Path) -> None:
 def _rotate_backups(backup_dir: Path, keep: int) -> int:
     """Delete old backups, keeping only the most recent `keep` files."""
     archives = sorted(
-        backup_dir.glob("palmtop_backup_*.tar.gz"),
+        backup_dir.glob("palmtop_backup_*.tar.gz*"),  # matches plaintext and .enc
         key=lambda p: p.stat().st_mtime,
         reverse=True,
     )

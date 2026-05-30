@@ -23,12 +23,14 @@ cloud = ["anthropic>=0.50.0"]
 atlassian = ["atlassian-python-api>=3.41.0"]
 web = ["starlette>=0.40.0", "uvicorn>=0.30.0"]
 observability = ["langfuse>=4.0.0"]
+encryption = ["cryptography>=42.0"]  # at-rest encryption for backups/exports (issue #48)
 dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.24",
     "ruff>=0.8.0",
+    "cryptography>=42.0",  # so backup-encryption tests run in CI
 ]
-all = ["palmtop[telegram,discord,slack,matrix,xmpp,cloud,atlassian,web,observability]"]
+all = ["palmtop[telegram,discord,slack,matrix,xmpp,cloud,atlassian,web,observability,encryption]"]
 
 [project.scripts]
 palmtop = "palmtop.__main__:main"
