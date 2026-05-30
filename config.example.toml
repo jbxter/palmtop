@@ -228,6 +228,12 @@ n_threads = 4
 # MCP servers — the agent connects as a client (lazy, on first tool use)
 # If an MCP server fails, the agent falls back to built-in REST tools when available.
 #
+# SECURITY: an MCP server is a TRUSTED process — its `command` runs locally and
+# its output is fed to the agent. Only add servers you trust. As of #49 the
+# subprocess gets a least-privilege environment (a safe baseline like PATH/HOME,
+# NOT your API keys) plus whatever you put in its `env` below — so grant each
+# server only the secrets it actually needs.
+#
 # Atlassian MCP (built-in, pure Python — no Rust/Node.js):
 #   pip install palmtop[atlassian]
 # The [atlassian] config above auto-maps to the env vars the MCP server needs.
