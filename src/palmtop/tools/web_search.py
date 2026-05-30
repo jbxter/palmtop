@@ -132,9 +132,9 @@ class WebSearchTool(Tool):
             headers={"X-Subscription-Token": api_key, "Accept": "application/json"},
         )
         if resp.status_code == 429:
-            raise _RateLimited(f"Brave key ...{api_key[-4:]}")
+            raise _RateLimited("Brave key rate-limited")
         if resp.status_code != 200:
-            log.warning("Brave HTTP %d with key ...%s", resp.status_code, api_key[-4:])
+            log.warning("Brave HTTP %d (key redacted)", resp.status_code)
             return ""
 
         data = resp.json()
@@ -170,9 +170,9 @@ class WebSearchTool(Tool):
             headers={"X-API-KEY": api_key, "Content-Type": "application/json"},
         )
         if resp.status_code == 429:
-            raise _RateLimited(f"Serper key ...{api_key[-4:]}")
+            raise _RateLimited("Serper key rate-limited")
         if resp.status_code != 200:
-            log.warning("Serper HTTP %d with key ...%s", resp.status_code, api_key[-4:])
+            log.warning("Serper HTTP %d (key redacted)", resp.status_code)
             return ""
 
         data = resp.json()

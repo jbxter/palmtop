@@ -42,11 +42,15 @@ COPY config.example.toml ./
 # Copy encrypted vault if present (decrypted at runtime via DOTENV_KEY)
 COPY .env.vault* ./
 
-# Data directory for SQLite databases
-RUN mkdir -p /app/data
+# Data directory for SQLite databases; run as a non-root user
+RUN mkdir -p /app/data \
+    && useradd --create-home --uid 10001 palmtop \
+    && chown -R palmtop:palmtop /app
 
 ENV PATH="/app/.venv/bin:$PATH"
 ENV PYTHONUNBUFFERED=1
+
+USER palmtop
 
 EXPOSE 8000
 

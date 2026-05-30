@@ -220,20 +220,21 @@ def create_app(
 
     # ── CORS middleware ───────────────────────────────────────────
     async def cors_middleware(request: Request, call_next):
-        origin = allowed_origin or "*"
-        # Handle preflight
+        # Only emit an Access-Control-Allow-Origin when one is explicitly
+        # configured (allowed_origin is auto-derived from persona.domain). With
+        # none set, default to same-origin rather than a permissive wildcard.
         if request.method == "OPTIONS":
-            return Response(
-                status_code=204,
-                headers={
-                    "Access-Control-Allow-Origin": origin,
-                    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-                    "Access-Control-Allow-Headers": "Content-Type",
-                    "Access-Control-Max-Age": "86400",
-                },
-            )
+            headers = {
+                "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type",
+                "Access-Control-Max-Age": "86400",
+            }
+            if allowed_origin:
+                headers["Access-Control-Allow-Origin"] = allowed_origin
+            return Response(status_code=204, headers=headers)
         response = await call_next(request)
-        response.headers["Access-Control-Allow-Origin"] = origin
+        if allowed_origin:
+            response.headers["Access-Control-Allow-Origin"] = allowed_origin
         return response
 
     # ── HTTPS redirect middleware ────────────────────────────────

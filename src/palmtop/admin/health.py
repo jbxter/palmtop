@@ -13,6 +13,7 @@ footprint on the S21.
 from __future__ import annotations
 
 import asyncio
+import hmac
 import json
 import logging
 import time
@@ -173,7 +174,7 @@ class HealthServer:
             return False  # admin disabled when no token configured
         auth = headers.get("authorization", "")
         if auth.startswith("Bearer "):
-            return auth[7:].strip() == self._state.admin_token
+            return hmac.compare_digest(auth[7:].strip(), self._state.admin_token)
         return False
 
     async def _respond(self, writer: asyncio.StreamWriter, status: int, body: str) -> None:

@@ -9,6 +9,7 @@ PersonaConfig — nothing is hardcoded.
 
 from __future__ import annotations
 
+import html
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -153,12 +154,26 @@ def _md_to_html(md: str) -> str:
     return "\n".join(html_parts)
 
 
+def _render_link(m: re.Match) -> str:
+    """Render a markdown link, dropping disallowed (e.g. javascript:) schemes."""
+    label, url = m.group(1), m.group(2)
+    if url.strip().lower().startswith(("javascript:", "data:", "vbscript:")):
+        return label  # unsafe scheme — render as plain text, no anchor
+    href = url.replace('"', "%22")
+    return f'<a href="{href}">{label}</a>'
+
+
 def _inline(text: str) -> str:
-    """Process inline markdown: bold, italic, code, links, em-dash."""
+    """Process inline markdown: bold, italic, code, links, em-dash.
+
+    Text is HTML-escaped first so raw markup in a post can't inject HTML, and
+    link schemes are restricted (defense in depth alongside the site CSP).
+    """
+    text = html.escape(text, quote=False)
     # Code spans first (protect from other processing)
     text = re.sub(r"`([^`]+)`", r"<code>\1</code>", text)
-    # Links: [text](url)
-    text = re.sub(r"\[([^\]]+)\]\(([^)]+)\)", r'<a href="\2">\1</a>', text)
+    # Links: [text](url) — scheme-checked
+    text = re.sub(r"\[([^\]]+)\]\(([^)]+)\)", _render_link, text)
     # Bold: **text** or __text__
     text = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", text)
     text = re.sub(r"__(.+?)__", r"<strong>\1</strong>", text)
