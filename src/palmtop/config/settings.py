@@ -136,6 +136,15 @@ class EngineConfig:
 
 
 @dataclass
+class BudgetConfig:
+    """Cloud-LLM spend circuit-breaker (issue #47)."""
+
+    # Approximate cloud tokens (input+output) per UTC day before cloud calls are
+    # refused (fail closed). 0 = unlimited. Catches runaway loops / abuse.
+    daily_token_cap: int = 5_000_000
+
+
+@dataclass
 class CursorConfig:
     """Cursor Cloud Agents bridge — delegate repo work via API.
 
@@ -357,6 +366,7 @@ class Config:
     digest: DigestConfig = field(default_factory=DigestConfig)
     alignment: AlignmentConfig = field(default_factory=AlignmentConfig)
     engine: EngineConfig = field(default_factory=EngineConfig)
+    budget: BudgetConfig = field(default_factory=BudgetConfig)
     cursor: CursorConfig = field(default_factory=CursorConfig)
     vercel: VercelConfig = field(default_factory=VercelConfig)
     railway: RailwayConfig = field(default_factory=RailwayConfig)
@@ -492,6 +502,10 @@ class Config:
                 for k, v in raw["engine"].items():
                     if hasattr(cfg.engine, k):
                         setattr(cfg.engine, k, v)
+            if "budget" in raw:
+                for k, v in raw["budget"].items():
+                    if hasattr(cfg.budget, k):
+                        setattr(cfg.budget, k, v)
             if "cursor" in raw:
                 for k, v in raw["cursor"].items():
                     if hasattr(cfg.cursor, k):

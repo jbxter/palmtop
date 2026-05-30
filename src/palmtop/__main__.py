@@ -22,7 +22,7 @@ from palmtop.tools.reminders import ReminderTool
 from palmtop.tools.web_search import WebSearchTool
 
 
-def _make_cloud(tier: CloudTierConfig, label: str, log):
+def _make_cloud(tier: CloudTierConfig, label: str, log, guard=None):
     # Ollama needs no API key; all others do
     if not tier.api_key and tier.provider != "ollama":
         return None
@@ -32,7 +32,32 @@ def _make_cloud(tier: CloudTierConfig, label: str, log):
 
     backend = create_cloud_backend(tier.provider, tier.api_key, tier.model or None)
     log.info("Cloud %s: %s / %s", label, tier.provider, getattr(backend, "_model", "unknown"))
+    # Wrap in the shared spend guard so all cloud usage is budgeted (issue #47).
+    if guard is not None and guard.daily_token_cap > 0:
+        from palmtop.inference.budget import BudgetedBackend
+
+        backend = BudgetedBackend(backend, guard)
     return backend
+
+
+def _budget_alert(send_fn, user_id: str):
+    """Return an on_exceeded callback that pings the owner once when the cloud cap hits."""
+
+    def cb(used: int, cap: int) -> None:
+        if not user_id:
+            return
+        try:
+            asyncio.create_task(
+                send_fn(
+                    user_id,
+                    f"⚠️ Cloud LLM daily budget reached ({used}/{cap} tokens). "
+                    "Pausing cloud calls until tomorrow — raise [budget] daily_token_cap if intended.",
+                )
+            )
+        except Exception:
+            pass
+
+    return cb
 
 
 class _SmsChannelAdapter:
@@ -149,8 +174,13 @@ def main() -> None:
     reminders = ReminderTool(cfg.data_dir / "reminders.db", timezone=cfg.timezone)
     kb = KnowledgeBase(cfg.data_dir / "knowledge.db")
 
-    light = _make_cloud(cfg.cloud_light, "light", log)
-    heavy = _make_cloud(cfg.cloud_heavy, "heavy", log)
+    from palmtop.inference.budget import BudgetGuard
+
+    budget_guard = BudgetGuard(daily_token_cap=cfg.budget.daily_token_cap)
+    light = _make_cloud(cfg.cloud_light, "light", log, budget_guard)
+    heavy = _make_cloud(cfg.cloud_heavy, "heavy", log, budget_guard)
+    if cfg.budget.daily_token_cap > 0:
+        log.info("Cloud spend guard: %d tokens/day", cfg.budget.daily_token_cap)
 
     if not light and not heavy:
         log.info("No cloud API keys — running local-only")
@@ -558,6 +588,10 @@ def main() -> None:
                 if not hasattr(agent, "_send_fn") or agent._send_fn is None:
                     reminders.set_notify(tg.send_message)
                     agent._send_fn = tg.send_message
+                    budget_guard.on_exceeded = _budget_alert(
+                        tg.send_message,
+                        str(cfg.telegram.allowed_users[0]) if cfg.telegram.allowed_users else "",
+                    )
                     if cursor_manager:
                         cursor_manager.set_notify(tg.send_message)
                     if vercel_tool:
@@ -833,6 +867,10 @@ def main() -> None:
         reminders.set_notify(channel.send_message)
         # Wire send_fn for blessing gate + Cursor completion notifications
         agent._send_fn = channel.send_message
+        budget_guard.on_exceeded = _budget_alert(
+            channel.send_message,
+            str(cfg.telegram.allowed_users[0]) if cfg.telegram.allowed_users else "",
+        )
         if cursor_manager:
             cursor_manager.set_notify(channel.send_message)
         if vercel_tool:

@@ -258,6 +258,13 @@ enabled = true
 backend = "sqlite"     # "sqlite" (zero deps, traces.db) or "langfuse" (cloud)
 # Langfuse needs: LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_BASE_URL
 
+[budget]
+# Cloud-LLM spend circuit-breaker. Approximate tokens (input+output, estimated)
+# per UTC day before cloud calls are refused (fail closed) — bounds runaway
+# loops, abusive web chat, or injection-driven tool loops. 0 = unlimited.
+# The owner is alerted once when the cap is hit.
+daily_token_cap = 5000000
+
 [digest]
 enabled = true
 hour = 7          # 7:00 AM in your timezone
