@@ -152,8 +152,7 @@ def main() -> None:
 
     cfg = Config.load(config_path)
     log.info(
-        "Runtime: %s | Profile: %s | Channel: %s | "
-        "http=%d/%d children=%d research=%d n_ctx=%d n_threads=%d workers=%d",
+        "Runtime: %s | Profile: %s | Channel: %s | http=%d/%d children=%d research=%d n_ctx=%d n_threads=%d workers=%d",
         cfg.runtime,
         cfg.profile.name,
         cfg.channel,

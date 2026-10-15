@@ -232,9 +232,7 @@ def parse_spawn_plan(text: str, *, max_children: int = 4) -> SpawnPlan | None:
 def _fence(result: ChildResult) -> str:
     body = (result.output or "")[:OUTPUT_LIMIT]
     return (
-        f'<untrusted-child id="{result.id}" role="{result.role}" status="{result.status}">\n'
-        f"{body}\n"
-        "</untrusted-child>"
+        f'<untrusted-child id="{result.id}" role="{result.role}" status="{result.status}">\n{body}\n</untrusted-child>'
     )
 
 
@@ -248,7 +246,7 @@ def _planner_prompt(task: str, max_children: int) -> str:
         "coder (a Cursor cloud agent), deployer (a configured Vercel or Railway redeploy).\n"
         "Do not use a supervisor role. Children cannot spawn.\n"
         "Use several research children only when the work splits cleanly. "
-        "A single research child is not a spawn plan — return {\"children\":[]} and the parent will answer directly.\n"
+        'A single research child is not a spawn plan — return {"children":[]} and the parent will answer directly.\n'
         "Operator, writer, coder, and deployer children run after research and will see the research text as data.\n"
         f"\nOwner task:\n{task}"
     )
@@ -340,12 +338,7 @@ def deploy_config_summary(tool: object, query: str) -> str:
     if hasattr(cfg, "default_target"):
         branch = _deploy_branch(query, getattr(cfg, "default_branch", "") or "")
         project = getattr(cfg, "default_project_id", "") or getattr(cfg, "default_project_name", "") or "(unset)"
-        return (
-            f"{note}\n"
-            f"Target: {getattr(cfg, 'default_target', '')}\n"
-            f"Project: {project}\n"
-            f"Branch: {branch}"
-        )
+        return f"{note}\nTarget: {getattr(cfg, 'default_target', '')}\nProject: {project}\nBranch: {branch}"
     if hasattr(cfg, "default_service_id"):
         return (
             f"{note}\n"
@@ -705,9 +698,7 @@ class SupervisorHarness:
         providers = sorted(self._deploy_allow())
         for child in deployers:
             status, text = await self._cloud(
-                lambda child=child: self._llm.generate(
-                    _deployer_prompt(child, research_blob, providers), alignment
-                )
+                lambda child=child: self._llm.generate(_deployer_prompt(child, research_blob, providers), alignment)
             )
             if status != "ok":
                 failed = ChildResult(id=child.id, role="deployer", status=status, output=text)
@@ -840,9 +831,7 @@ class SupervisorHarness:
         except (TypeError, ValueError):
             return 0
 
-    async def _run_operator(
-        self, child: ChildSpec, alignment: dict, research_blob: str, user_id: str
-    ) -> ChildResult:
+    async def _run_operator(self, child: ChildSpec, alignment: dict, research_blob: str, user_id: str) -> ChildResult:
         status, text = await self._cloud(lambda: self._llm.generate(_operator_prompt(child, research_blob), alignment))
         if status != "ok":
             return ChildResult(id=child.id, role="operator", status=status, output=text)
@@ -880,9 +869,7 @@ class SupervisorHarness:
         output = "\n".join(lines) if lines else text
         return ChildResult(id=child.id, role="operator", status="ok", output=output)
 
-    async def _run_coder(
-        self, child: ChildSpec, alignment: dict, research_blob: str, user_id: str
-    ) -> ChildResult:
+    async def _run_coder(self, child: ChildSpec, alignment: dict, research_blob: str, user_id: str) -> ChildResult:
         cursor = self._cursor
         if cursor is None or not hasattr(cursor, "launch"):
             return ChildResult(id=child.id, role="coder", status="error", output="Cursor is not configured")
