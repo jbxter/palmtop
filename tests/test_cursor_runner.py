@@ -218,3 +218,29 @@ async def test_jira_bridge_forces_approval(tmp_path: Path) -> None:
     await bridge.evaluate_and_delegate("X-1")
     cursor.launch.assert_called_once()
     assert cursor.launch.call_args.kwargs.get("force_approval") is True
+
+
+@pytest.mark.asyncio
+async def test_approval_granted_skips_second_blessing(tmp_path: Path) -> None:
+    """A parent plan blessing covers the launch, so Cursor does not ask again."""
+    client = MagicMock()
+    client.close = AsyncMock()
+    client.create_agent = AsyncMock(
+        return_value={
+            "agent": {"id": "bc-1", "url": "https://cursor.com/a"},
+            "run": {"id": "run-1", "status": "CREATING"},
+        }
+    )
+    gate = MagicMock()
+    cfg = CursorConfig(
+        enabled=True,
+        allowed_repos=["https://github.com/org/repo"],
+        default_repo="https://github.com/org/repo",
+        require_blessing=True,
+    )
+    mgr = CursorJobManager(client, cfg, tmp_path, blessing_gate=gate, send_fn=AsyncMock())
+    reply = await mgr.launch("fix lint", user_id="u1", approval_granted=True)
+    assert "bc-1" in reply
+    gate.prepare.assert_not_called()
+    client.create_agent.assert_called_once()
+    await mgr.close()

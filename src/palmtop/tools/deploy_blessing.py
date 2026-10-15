@@ -5,12 +5,21 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import Awaitable, Callable
+from contextvars import ContextVar
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from palmtop.core.blessing import BlessingGate
 
 log = logging.getLogger(__name__)
+
+# Set only around a harness deploy that the owner already approved.
+# Task-local so a chat deploy on another task still asks.
+plan_approval: ContextVar[bool] = ContextVar("palmtop_deploy_plan_approval", default=False)
+
+
+def plan_approval_active() -> bool:
+    return bool(plan_approval.get())
 
 
 async def request_deploy_blessing(

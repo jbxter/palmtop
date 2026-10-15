@@ -288,7 +288,7 @@ class OpenAIWhisperSTT:
             return ""
 
 
-def create_stt(voice_config) -> STTProvider | None:
+def create_stt(voice_config, n_threads: int = 4) -> STTProvider | None:
     """Factory — build the configured STT provider with optional fallback.
 
     Default: GeminiSTT (reuses GOOGLE_API_KEY) with WhisperCppSTT fallback.
@@ -304,14 +304,14 @@ def create_stt(voice_config) -> STTProvider | None:
             primary = GeminiSTT(voice_config.stt_api_key)
             # Try to add whisper.cpp as offline fallback
             try:
-                fallback = WhisperCppSTT(model_path=voice_config.stt_model_path)
+                fallback = WhisperCppSTT(model_path=voice_config.stt_model_path, n_threads=n_threads)
                 return FallbackSTT(primary, fallback)
             except FileNotFoundError:
                 log.info("whisper.cpp not available — Gemini STT only (no offline fallback)")
                 return primary
 
         if provider == "whisper_cpp":
-            return WhisperCppSTT(model_path=voice_config.stt_model_path)
+            return WhisperCppSTT(model_path=voice_config.stt_model_path, n_threads=n_threads)
 
         log.warning("Unknown STT provider '%s', trying Gemini", provider)
         return GeminiSTT(voice_config.stt_api_key)
@@ -321,7 +321,7 @@ def create_stt(voice_config) -> STTProvider | None:
         # Last resort: try whatever we can
         for fallback_fn in [
             lambda: GeminiSTT(voice_config.stt_api_key),
-            lambda: WhisperCppSTT(model_path=voice_config.stt_model_path),
+            lambda: WhisperCppSTT(model_path=voice_config.stt_model_path, n_threads=n_threads),
         ]:
             try:
                 return fallback_fn()

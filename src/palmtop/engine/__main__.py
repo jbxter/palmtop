@@ -15,7 +15,7 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
-from palmtop.config.settings import Config
+from palmtop.config.settings import Config, http_limits
 from palmtop.core.engine import PalmtopAgent
 from palmtop.core.goals_paths import resolve_goals_path
 
@@ -89,12 +89,22 @@ def main(argv: list[str] | None = None) -> int:
     if cfg.cloud_heavy.api_key:
         from palmtop.inference.cloud import create_cloud_backend
 
-        heavy = create_cloud_backend(cfg.cloud_heavy.provider, cfg.cloud_heavy.api_key, cfg.cloud_heavy.model or None)
+        heavy = create_cloud_backend(
+            cfg.cloud_heavy.provider,
+            cfg.cloud_heavy.api_key,
+            cfg.cloud_heavy.model or None,
+            limits=http_limits(cfg.profile),
+        )
         engine_llm = CloudLLMAdapter(heavy)
     elif cfg.cloud_light.api_key:
         from palmtop.inference.cloud import create_cloud_backend
 
-        light = create_cloud_backend(cfg.cloud_light.provider, cfg.cloud_light.api_key, cfg.cloud_light.model or None)
+        light = create_cloud_backend(
+            cfg.cloud_light.provider,
+            cfg.cloud_light.api_key,
+            cfg.cloud_light.model or None,
+            limits=http_limits(cfg.profile),
+        )
         engine_llm = CloudLLMAdapter(light)
 
     if engine_llm is None:

@@ -24,11 +24,17 @@ class LocalBackend:
             n_ctx=config.n_ctx,
             n_gpu_layers=config.n_gpu_layers,
             n_threads=config.n_threads,
+            n_threads_batch=config.n_threads,
             verbose=False,
         )
+        self._gen_lock = asyncio.Lock()
         log.info("Model loaded")
 
     async def complete(self, messages: list[Message], max_tokens: int = 512) -> str:
+        async with self._gen_lock:
+            return await self._generate(messages, max_tokens)
+
+    async def _generate(self, messages: list[Message], max_tokens: int) -> str:
         formatted = [{"role": m.role, "content": m.content} for m in messages]
         loop = asyncio.get_running_loop()
         result = await loop.run_in_executor(

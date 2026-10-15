@@ -203,6 +203,7 @@ class CursorJobManager:
         user_id: str = "default",
         alignment: dict | None = None,
         force_approval: bool = False,
+        approval_granted: bool = False,
     ) -> str:
         # force_approval requires human /approve regardless of [cursor]
         # require_blessing — used when the trigger is untrusted (e.g. a Jira
@@ -223,7 +224,9 @@ class CursorJobManager:
             return f"Invalid branch/ref: {branch!r}"
         # An unreviewed ref of an allowed repo can still carry malicious code, so
         # only the default branch may run autonomously; other refs need approval.
-        if branch != self._cfg.default_branch and not (self._cfg.require_blessing or force_approval):
+        if branch != self._cfg.default_branch and not (
+            self._cfg.require_blessing or force_approval or approval_granted
+        ):
             return (
                 f"Refused — autonomous runs (require_blessing=false) are limited to the default "
                 f"branch '{self._cfg.default_branch}'; requested '{branch}'. Enable require_blessing "
@@ -236,7 +239,10 @@ class CursorJobManager:
                 "Wait for one to finish."
             )
 
-        if self._cfg.require_blessing or force_approval:
+        # A parent plan blessing already covered this launch. force_approval
+        # still asks, because that flag marks an untrusted trigger.
+        needs_blessing = force_approval or (self._cfg.require_blessing and not approval_granted)
+        if needs_blessing:
             # Fail closed: if approval is required but we have no way to ask
             # (gate or notify channel missing), refuse — never launch unapproved.
             if not self._blessing_gate or not self._send_fn:

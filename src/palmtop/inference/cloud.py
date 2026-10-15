@@ -6,12 +6,14 @@ from collections.abc import AsyncIterator
 
 import httpx
 
+from palmtop.config.settings import http_limits, resolve_profile
 from palmtop.inference.base import Message
 
 log = logging.getLogger(__name__)
 
 
-_PHONE_LIMITS = httpx.Limits(max_connections=5, max_keepalive_connections=2)
+def _default_limits() -> httpx.Limits:
+    return http_limits(resolve_profile("phone", 1, None))
 
 
 class AnthropicBackend:
@@ -19,10 +21,16 @@ class AnthropicBackend:
 
     API_URL = "https://api.anthropic.com/v1/messages"
 
-    def __init__(self, api_key: str, model: str = "claude-haiku-4-5-20251001") -> None:
+    def __init__(
+        self,
+        api_key: str,
+        model: str = "claude-haiku-4-5-20251001",
+        *,
+        limits: httpx.Limits | None = None,
+    ) -> None:
         self._api_key = api_key
         self._model = model
-        self._client = httpx.AsyncClient(timeout=60.0, limits=_PHONE_LIMITS)
+        self._client = httpx.AsyncClient(timeout=60.0, limits=limits or _default_limits())
 
     async def complete(self, messages: list[Message], max_tokens: int = 1024) -> str:
         system = None
@@ -114,10 +122,16 @@ class GeminiBackend:
 
     API_URL = "https://generativelanguage.googleapis.com/v1beta/models"
 
-    def __init__(self, api_key: str, model: str = "gemini-2.5-flash") -> None:
+    def __init__(
+        self,
+        api_key: str,
+        model: str = "gemini-2.5-flash",
+        *,
+        limits: httpx.Limits | None = None,
+    ) -> None:
         self._api_key = api_key
         self._model = model
-        self._client = httpx.AsyncClient(timeout=60.0, limits=_PHONE_LIMITS)
+        self._client = httpx.AsyncClient(timeout=60.0, limits=limits or _default_limits())
 
     def _build_gemini_request(self, messages: list[Message], max_tokens: int) -> tuple[list, dict, str | None]:
         """Parse messages into Gemini format. Returns (contents, gen_config, system)."""
@@ -216,12 +230,14 @@ class OpenAICompatibleBackend:
         model: str = "gpt-4o-mini",
         base_url: str = "https://api.openai.com/v1",
         extra_headers: dict[str, str] | None = None,
+        *,
+        limits: httpx.Limits | None = None,
     ) -> None:
         self._api_key = api_key
         self._model = model
         self._base_url = base_url.rstrip("/")
         self._extra_headers = extra_headers or {}
-        self._client = httpx.AsyncClient(timeout=120.0, limits=_PHONE_LIMITS)
+        self._client = httpx.AsyncClient(timeout=120.0, limits=limits or _default_limits())
 
     def _headers(self) -> dict[str, str]:
         h = {
@@ -308,10 +324,16 @@ class OllamaBackend:
     Great alternative to llama.cpp — no compilation required.
     """
 
-    def __init__(self, model: str = "llama3.2", base_url: str = "http://localhost:11434") -> None:
+    def __init__(
+        self,
+        model: str = "llama3.2",
+        base_url: str = "http://localhost:11434",
+        *,
+        limits: httpx.Limits | None = None,
+    ) -> None:
         self._model = model
         self._base_url = base_url.rstrip("/")
-        self._client = httpx.AsyncClient(timeout=300.0, limits=_PHONE_LIMITS)
+        self._client = httpx.AsyncClient(timeout=300.0, limits=limits or _default_limits())
 
     async def complete(self, messages: list[Message], max_tokens: int = 1024) -> str:
         api_messages = [{"role": m.role, "content": m.content} for m in messages]
@@ -378,10 +400,16 @@ class CohereBackend:
 
     API_URL = "https://api.cohere.com/v2/chat"
 
-    def __init__(self, api_key: str, model: str = "command-r-plus") -> None:
+    def __init__(
+        self,
+        api_key: str,
+        model: str = "command-r-plus",
+        *,
+        limits: httpx.Limits | None = None,
+    ) -> None:
         self._api_key = api_key
         self._model = model
-        self._client = httpx.AsyncClient(timeout=120.0, limits=_PHONE_LIMITS)
+        self._client = httpx.AsyncClient(timeout=120.0, limits=limits or _default_limits())
 
     def _headers(self) -> dict[str, str]:
         return {
@@ -491,7 +519,14 @@ PROVIDER_ENV_KEYS: dict[str, str] = {
 _OPENAI_COMPATIBLE = {"openai", "groq", "together", "fireworks", "deepseek", "mistral", "openrouter"}
 
 
-def create_cloud_backend(provider: str, api_key: str, model: str | None = None, base_url: str | None = None):
+def create_cloud_backend(
+    provider: str,
+    api_key: str,
+    model: str | None = None,
+    base_url: str | None = None,
+    *,
+    limits: httpx.Limits | None = None,
+):
     """Create an inference backend for any supported provider.
 
     Args:
@@ -500,6 +535,7 @@ def create_cloud_backend(provider: str, api_key: str, model: str | None = None, 
         api_key: API key (not needed for ollama).
         model: Model name override (uses provider default if None).
         base_url: Base URL override (for custom deployments or Ollama host).
+        limits: HTTP pool from the hardware profile. Phone caps when omitted.
     """
     defaults = PROVIDER_DEFAULTS.get(provider)
     if not defaults:
@@ -510,17 +546,17 @@ def create_cloud_backend(provider: str, api_key: str, model: str | None = None, 
     resolved_model = model or defaults["model"]
 
     if provider == "anthropic":
-        return AnthropicBackend(api_key, model=resolved_model)
+        return AnthropicBackend(api_key, model=resolved_model, limits=limits)
 
     if provider == "google":
-        return GeminiBackend(api_key, model=resolved_model)
+        return GeminiBackend(api_key, model=resolved_model, limits=limits)
 
     if provider == "ollama":
         resolved_url = base_url or defaults.get("base_url", "http://localhost:11434")
-        return OllamaBackend(model=resolved_model, base_url=resolved_url)
+        return OllamaBackend(model=resolved_model, base_url=resolved_url, limits=limits)
 
     if provider == "cohere":
-        return CohereBackend(api_key, model=resolved_model)
+        return CohereBackend(api_key, model=resolved_model, limits=limits)
 
     if provider in _OPENAI_COMPATIBLE:
         resolved_url = base_url or defaults.get("base_url", "https://api.openai.com/v1")
@@ -534,6 +570,7 @@ def create_cloud_backend(provider: str, api_key: str, model: str | None = None, 
             model=resolved_model,
             base_url=resolved_url,
             extra_headers=extra_headers,
+            limits=limits,
         )
 
     raise ValueError(f"Unknown cloud provider: '{provider}'")

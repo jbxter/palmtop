@@ -9,7 +9,11 @@ import httpx
 
 log = logging.getLogger(__name__)
 
-_PHONE_LIMITS = httpx.Limits(max_connections=5, max_keepalive_connections=2)
+
+def _phone_limits() -> httpx.Limits:
+    from palmtop.config.settings import http_limits, resolve_profile
+
+    return http_limits(resolve_profile("phone", 1, None))
 
 TERMINAL_RUN_STATUSES = frozenset({"FINISHED", "ERROR", "CANCELLED", "EXPIRED"})
 
@@ -28,13 +32,13 @@ class CursorAgentsClient:
 
     BASE_URL = "https://api.cursor.com"
 
-    def __init__(self, api_key: str, *, timeout: float = 60.0) -> None:
+    def __init__(self, api_key: str, *, timeout: float = 60.0, limits: httpx.Limits | None = None) -> None:
         self._api_key = api_key.strip()
         self._client = httpx.AsyncClient(
             base_url=self.BASE_URL,
             auth=httpx.BasicAuth(self._api_key, ""),
             timeout=timeout,
-            limits=_PHONE_LIMITS,
+            limits=limits or _phone_limits(),
             headers={"Content-Type": "application/json"},
         )
 

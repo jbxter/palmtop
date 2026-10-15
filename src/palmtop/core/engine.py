@@ -48,6 +48,8 @@ class PalmtopAgent:
         self._project_root = project_root
         self._data_dir = data_dir
         self.aligner = aligner or GoalAligner(goals_path, use_semantic=False, autonomous=autonomous)
+        # Set by startup when [engine] harness_enabled. None keeps a single generate().
+        self.harness = None
 
     # ── Orchestration ──────────────────────────────────────────────────────────
 
@@ -83,6 +85,28 @@ class PalmtopAgent:
                 continue
             return self._blocked(f"Task not aligned: {current}")
         return self._blocked(f"Task still not aligned after {self.MAX_REALIGN_DEPTH} attempts: {current}")
+
+    def align_only(self, task: str) -> OrchestrationResult:
+        """Goal check without execution, for the async supervisor harness.
+
+        The channel loop runs children itself. Calling ``_execute`` here would
+        nest ``asyncio.run`` on the worker thread that ``orchestrate_result``
+        already occupies.
+        """
+        alignment = self.aligner.check_alignment(task)
+        if alignment.get("load_status") != "ok":
+            return OrchestrationResult(
+                status="blocked",
+                blocked_reason=f"BLOCKED: goals unavailable ({alignment.get('load_status')}).",
+                alignment=alignment,
+            )
+        if alignment.get("is_aligned"):
+            return OrchestrationResult(status="ready", alignment=alignment)
+        return OrchestrationResult(
+            status="blocked",
+            blocked_reason=f"BLOCKED: task not aligned with active goals: {task}",
+            alignment=alignment,
+        )
 
     def orchestrate_result(self, task: str, interactive: bool = False) -> OrchestrationResult:
         """Structured, non-interactive orchestration for the channel/CLI path.

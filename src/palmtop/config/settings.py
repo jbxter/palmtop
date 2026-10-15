@@ -16,12 +16,147 @@ else:
 
 Runtime = Literal["dev", "phone"]
 Channel = Literal["telegram", "sms", "discord", "slack", "matrix", "email", "signal", "irc", "xmpp"]
+ProfileName = Literal["phone", "compact", "host"]
+
+_GB = 1024**3
+_HOST_RAM = 8 * _GB
+_WIDE_CTX_RAM = 16 * _GB
+_CGROUP_UNLIMITED = 1 << 60
+_MISSING = object()
 
 
 def detect_runtime() -> Runtime:
     if "TERMUX_VERSION" in os.environ or "com.termux" in os.environ.get("PREFIX", ""):
         return "phone"
     return "dev"
+
+
+@dataclass(frozen=True)
+class HardwareProfile:
+    """Resource caps for the machine Palmtop is running on."""
+
+    name: ProfileName
+    max_connections: int
+    max_keepalive: int
+    max_children: int
+    max_parallel_research: int
+    n_ctx: int
+    n_threads: int
+    worker_pool: int
+
+
+def read_cgroup_memory_bytes(paths: tuple[Path, ...] | None = None) -> int | None:
+    """Linux cgroup memory limit, when the controller publishes one."""
+    candidates = paths or (
+        Path("/sys/fs/cgroup/memory.max"),
+        Path("/sys/fs/cgroup/memory/memory.limit_in_bytes"),
+    )
+    for path in candidates:
+        try:
+            text = path.read_text(encoding="utf-8").strip()
+        except OSError:
+            continue
+        if not text or text == "max":
+            continue
+        try:
+            value = int(text)
+        except ValueError:
+            continue
+        if value <= 0 or value >= _CGROUP_UNLIMITED:
+            continue
+        return value
+    return None
+
+
+def read_physical_ram_bytes() -> int | None:
+    try:
+        pages = os.sysconf("SC_PHYS_PAGES")
+        page_size = os.sysconf("SC_PAGE_SIZE")
+    except (AttributeError, OSError, ValueError):
+        return None
+    if pages <= 0 or page_size <= 0:
+        return None
+    return int(pages) * int(page_size)
+
+
+def usable_ram_bytes(*, physical: int | None, cgroup: int | None) -> int | None:
+    """A container limit replaces the host's physical RAM."""
+    if cgroup is not None:
+        return cgroup
+    return physical
+
+
+def read_usable_ram_bytes() -> int | None:
+    return usable_ram_bytes(physical=read_physical_ram_bytes(), cgroup=read_cgroup_memory_bytes())
+
+
+def _host_threads(cpu: int) -> int:
+    if cpu > 2:
+        return cpu - 1
+    return max(1, cpu)
+
+
+def resolve_profile(runtime: Runtime, cpu: int, ram_bytes: int | None) -> HardwareProfile:
+    """Phone, compact, or host. Unknown RAM stays compact."""
+    cpu = max(1, int(cpu))
+    if runtime == "phone":
+        return HardwareProfile(
+            name="phone",
+            max_connections=5,
+            max_keepalive=2,
+            max_children=4,
+            max_parallel_research=3,
+            n_ctx=4096,
+            n_threads=4,
+            worker_pool=4,
+        )
+    if ram_bytes is None or ram_bytes < _HOST_RAM:
+        return HardwareProfile(
+            name="compact",
+            max_connections=5,
+            max_keepalive=2,
+            max_children=4,
+            max_parallel_research=3,
+            n_ctx=4096,
+            n_threads=4,
+            worker_pool=4,
+        )
+    parallel = min(6, cpu)
+    return HardwareProfile(
+        name="host",
+        max_connections=20,
+        max_keepalive=10,
+        max_children=8,
+        max_parallel_research=parallel,
+        n_ctx=8192 if ram_bytes >= _WIDE_CTX_RAM else 4096,
+        n_threads=_host_threads(cpu),
+        worker_pool=min(8, max(4, parallel)),
+    )
+
+
+def detect_hardware_profile() -> HardwareProfile:
+    return resolve_profile(detect_runtime(), os.cpu_count() or 1, read_usable_ram_bytes())
+
+
+def http_limits(profile: HardwareProfile):
+    """httpx pool for the profile already chosen on Config."""
+    import httpx
+
+    return httpx.Limits(
+        max_connections=profile.max_connections,
+        max_keepalive_connections=profile.max_keepalive,
+    )
+
+
+def install_worker_pool(workers: int):
+    """Default executor for blocking waits. Installed on the running loop."""
+    import asyncio
+    from concurrent.futures import ThreadPoolExecutor
+
+    loop = asyncio.get_running_loop()
+    pool = ThreadPoolExecutor(max_workers=max(1, workers), thread_name_prefix="palmtop")
+    loop.set_default_executor(pool)
+    return pool
 
 
 @dataclass
@@ -133,6 +268,10 @@ class EngineConfig:
     """Sovereign engine invocable from the agent (uses cloud backends)."""
 
     enabled: bool = True
+    # Depth-1 supervisor: plan a few children, then synthesize. Off keeps one generate().
+    harness_enabled: bool = True
+    max_children: int = 4
+    max_parallel_research: int = 3
 
 
 @dataclass
@@ -339,6 +478,7 @@ def _default_channel() -> Channel:
 @dataclass
 class Config:
     runtime: Runtime = field(default_factory=detect_runtime)
+    profile: HardwareProfile = field(default_factory=detect_hardware_profile)
     channel: Channel = field(default_factory=_default_channel)
     channels: list[Channel] = field(default_factory=list)  # multi-channel mode
     agent: AgentConfig = field(default_factory=AgentConfig)
@@ -383,8 +523,16 @@ class Config:
         return [self.channel]
 
     @classmethod
-    def load(cls, path: Path | None = None) -> Config:
+    def load(
+        cls,
+        path: Path | None = None,
+        *,
+        cpu: int | None = None,
+        ram_bytes: int | None | object = _MISSING,
+    ) -> Config:
         cfg = cls()
+        inference_set: set[str] = set()
+        engine_set: set[str] = set()
 
         if path and path.exists():
             with open(path, "rb") as f:
@@ -406,6 +554,7 @@ class Config:
                     cfg.web.allowed_origin = f"https://{cfg.persona.domain}"
 
             if "inference" in raw:
+                inference_set = set(raw["inference"])
                 for k, v in raw["inference"].items():
                     if hasattr(cfg.inference, k):
                         setattr(cfg.inference, k, v)
@@ -499,6 +648,7 @@ class Config:
                     if hasattr(cfg.alignment, k):
                         setattr(cfg.alignment, k, v)
             if "engine" in raw:
+                engine_set = set(raw["engine"])
                 for k, v in raw["engine"].items():
                     if hasattr(cfg.engine, k):
                         setattr(cfg.engine, k, v)
@@ -699,5 +849,17 @@ class Config:
         railway_token = os.environ.get("RAILWAY_TOKEN", "")
         if railway_token and not cfg.railway.api_token:
             cfg.railway.api_token = railway_token
+
+        cpu_count = cpu if cpu is not None else (os.cpu_count() or 1)
+        mem = read_usable_ram_bytes() if ram_bytes is _MISSING else ram_bytes
+        cfg.profile = resolve_profile(cfg.runtime, cpu_count, mem if isinstance(mem, int) or mem is None else None)
+        if "n_ctx" not in inference_set:
+            cfg.inference.n_ctx = cfg.profile.n_ctx
+        if "n_threads" not in inference_set:
+            cfg.inference.n_threads = cfg.profile.n_threads
+        if "max_children" not in engine_set:
+            cfg.engine.max_children = cfg.profile.max_children
+        if "max_parallel_research" not in engine_set:
+            cfg.engine.max_parallel_research = cfg.profile.max_parallel_research
 
         return cfg

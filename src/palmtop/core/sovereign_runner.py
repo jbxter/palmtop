@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import threading
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from pathlib import Path
@@ -38,16 +39,36 @@ def parse_engine_task(text: str) -> str | None:
     return None
 
 
-def _append_engine_audit(data_dir: Path | None, record: dict) -> None:
+_audit_lock = threading.Lock()
+
+
+def append_engine_audit(data_dir: Path | None, record: dict) -> None:
+    """Append one JSON line. A lock keeps parallel child writes from interleaving."""
     if data_dir is None:
         return
     path = Path(data_dir) / "engine_runs.jsonl"
+    line = json.dumps(record, default=str) + "\n"
     try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        with open(path, "a", encoding="utf-8") as f:
-            f.write(json.dumps(record, default=str) + "\n")
+        with _audit_lock:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with open(path, "a", encoding="utf-8") as f:
+                f.write(line)
     except OSError:
         log.debug("Could not append engine audit to %s", path, exc_info=True)
+
+
+def _append_engine_audit(data_dir: Path | None, record: dict) -> None:
+    append_engine_audit(data_dir, record)
+
+
+def _active_harness(sovereign: object) -> object | None:
+    """Return a real supervisor harness, ignoring mock auto-attributes."""
+    raw = getattr(sovereign, "__dict__", {}).get("harness")
+    if raw is None or getattr(raw, "enabled", True) is False:
+        return None
+    if not callable(getattr(raw, "run", None)):
+        return None
+    return raw
 
 
 async def run_sovereign_engine(
@@ -69,8 +90,14 @@ async def run_sovereign_engine(
     if sovereign is None:
         return "Sovereign engine is not configured."
 
-    # orchestrate_result() is synchronous (and may call an LLM) — run off-loop.
-    result = await asyncio.to_thread(sovereign.orchestrate_result, task)
+    harness = _active_harness(sovereign)
+    # Alignment stays synchronous and off-loop. When a harness is attached it
+    # runs here, on the caller's event loop, instead of inside _execute.
+    if harness is not None and hasattr(sovereign, "align_only"):
+        result = await asyncio.to_thread(sovereign.align_only, task)
+    else:
+        result = await asyncio.to_thread(sovereign.orchestrate_result, task)
+        harness = None
     alignment = getattr(result, "alignment", None) or {}
 
     _append_engine_audit(
@@ -85,6 +112,8 @@ async def run_sovereign_engine(
     )
 
     if getattr(result, "status", "") != "blocked":
+        if harness is not None:
+            return await harness.run(task, alignment, user_id=user_id, send_fn=send_fn)
         return result.message() or "Engine produced no output."
 
     # Blocked — offer a human override through the blessing gate.
@@ -93,6 +122,23 @@ async def run_sovereign_engine(
         blessing_gate.prepare(summary)
         await send_fn(user_id, f"\U0001f512 Engine task approval needed\n\n{summary}\n\nReply /approve or /deny")
         approved = await asyncio.to_thread(blessing_gate.wait)
+        if approved and harness is not None:
+            output = await harness.run(
+                task,
+                {"is_aligned": True, "score": 1.0, "matched_tags": [], "note": "human override"},
+                user_id=user_id,
+                send_fn=send_fn,
+            )
+            _append_engine_audit(
+                data_dir,
+                {
+                    "ts": datetime.now(UTC).isoformat(),
+                    "user_id": user_id,
+                    "task": task[:500],
+                    "status": "override_executed",
+                },
+            )
+            return output
         if approved and hasattr(sovereign, "execute_override"):
             output = await asyncio.to_thread(sovereign.execute_override, task)
             _append_engine_audit(

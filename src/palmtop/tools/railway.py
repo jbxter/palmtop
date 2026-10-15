@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any
 import httpx
 
 from palmtop.tools.base import Tool
-from palmtop.tools.deploy_blessing import request_deploy_blessing
+from palmtop.tools.deploy_blessing import plan_approval_active, request_deploy_blessing
 
 if TYPE_CHECKING:
     from palmtop.config.settings import RailwayConfig
@@ -18,7 +18,12 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 _GRAPHQL_URL = "https://backboard.railway.com/graphql/v2"
-_PHONE_LIMITS = httpx.Limits(max_connections=5, max_keepalive_connections=2)
+
+
+def _phone_limits() -> httpx.Limits:
+    from palmtop.config.settings import http_limits, resolve_profile
+
+    return http_limits(resolve_profile("phone", 1, None))
 
 
 class RailwayDeployTool(Tool):
@@ -36,9 +41,11 @@ class RailwayDeployTool(Tool):
         cfg: RailwayConfig,
         *,
         blessing_gate: BlessingGate | None = None,
+        limits: httpx.Limits | None = None,
     ) -> None:
         self._cfg = cfg
         self._blessing_gate = blessing_gate
+        self._limits = limits
         self._send_fn: Callable[[str, str], Awaitable[None]] | None = None
         self._user_id = "default"
         self._client: httpx.AsyncClient | None = None
@@ -53,7 +60,7 @@ class RailwayDeployTool(Tool):
         if self._client is None:
             self._client = httpx.AsyncClient(
                 timeout=30.0,
-                limits=_PHONE_LIMITS,
+                limits=self._limits or _phone_limits(),
                 headers={
                     "Authorization": f"Bearer {self._cfg.api_token}",
                     "Content-Type": "application/json",
@@ -139,7 +146,7 @@ class RailwayDeployTool(Tool):
             )
 
         summary = f"Service: {service_id}\nEnvironment: {environment_id}"
-        if self._cfg.require_blessing:
+        if self._cfg.require_blessing and not plan_approval_active():
             approved = await request_deploy_blessing(
                 self._blessing_gate,
                 self._send_fn,

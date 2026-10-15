@@ -5,7 +5,7 @@ import logging
 import sys
 from pathlib import Path
 
-from palmtop.config.settings import CloudTierConfig, Config
+from palmtop.config.settings import CloudTierConfig, Config, http_limits, install_worker_pool
 from palmtop.core.goal_aligner import GoalAligner
 from palmtop.core.goals_paths import resolve_goals_path
 from palmtop.core.loop import AgentLoop
@@ -22,7 +22,7 @@ from palmtop.tools.reminders import ReminderTool
 from palmtop.tools.web_search import WebSearchTool
 
 
-def _make_cloud(tier: CloudTierConfig, label: str, log, guard=None):
+def _make_cloud(tier: CloudTierConfig, label: str, log, guard=None, limits=None):
     # Ollama needs no API key; all others do
     if not tier.api_key and tier.provider != "ollama":
         return None
@@ -30,7 +30,7 @@ def _make_cloud(tier: CloudTierConfig, label: str, log, guard=None):
         return None
     from palmtop.inference.cloud import create_cloud_backend
 
-    backend = create_cloud_backend(tier.provider, tier.api_key, tier.model or None)
+    backend = create_cloud_backend(tier.provider, tier.api_key, tier.model or None, limits=limits)
     log.info("Cloud %s: %s / %s", label, tier.provider, getattr(backend, "_model", "unknown"))
     # Wrap in the shared spend guard so all cloud usage is budgeted (issue #47).
     if guard is not None and guard.daily_token_cap > 0:
@@ -151,7 +151,20 @@ def main() -> None:
         config_path = Path(sys.argv[1])
 
     cfg = Config.load(config_path)
-    log.info("Runtime: %s | Channel: %s", cfg.runtime, cfg.channel)
+    log.info(
+        "Runtime: %s | Profile: %s | Channel: %s | "
+        "http=%d/%d children=%d research=%d n_ctx=%d n_threads=%d workers=%d",
+        cfg.runtime,
+        cfg.profile.name,
+        cfg.channel,
+        cfg.profile.max_connections,
+        cfg.profile.max_keepalive,
+        cfg.engine.max_children,
+        cfg.engine.max_parallel_research,
+        cfg.inference.n_ctx,
+        cfg.inference.n_threads,
+        cfg.profile.worker_pool,
+    )
 
     # ── Safety floor: clamp the effective config so the agent can't run below
     # the minimum guardrail policy (issue #25). The floor comes from secure code
@@ -177,8 +190,8 @@ def main() -> None:
     from palmtop.inference.budget import BudgetGuard
 
     budget_guard = BudgetGuard(daily_token_cap=cfg.budget.daily_token_cap)
-    light = _make_cloud(cfg.cloud_light, "light", log, budget_guard)
-    heavy = _make_cloud(cfg.cloud_heavy, "heavy", log, budget_guard)
+    light = _make_cloud(cfg.cloud_light, "light", log, budget_guard, http_limits(cfg.profile))
+    heavy = _make_cloud(cfg.cloud_heavy, "heavy", log, budget_guard, http_limits(cfg.profile))
     if cfg.budget.daily_token_cap > 0:
         log.info("Cloud spend guard: %d tokens/day", cfg.budget.daily_token_cap)
 
@@ -414,7 +427,7 @@ def main() -> None:
         from palmtop.cursor.runner import CursorJobManager
         from palmtop.tools.cursor_delegate import DelegateCursorTool
 
-        cursor_client = CursorAgentsClient(cfg.cursor.api_key)
+        cursor_client = CursorAgentsClient(cfg.cursor.api_key, limits=http_limits(cfg.profile))
         cursor_manager = CursorJobManager(
             cursor_client,
             cfg.cursor,
@@ -438,6 +451,7 @@ def main() -> None:
         vercel_tool = VercelDeployTool(
             cfg.vercel,
             blessing_gate=blessing_gate if cfg.vercel.require_blessing else None,
+            limits=http_limits(cfg.profile),
         )
         tools.register(vercel_tool)
         log.info("Vercel deploy tool registered")
@@ -452,11 +466,33 @@ def main() -> None:
         railway_tool = RailwayDeployTool(
             cfg.railway,
             blessing_gate=blessing_gate if cfg.railway.require_blessing else None,
+            limits=http_limits(cfg.profile),
         )
         tools.register(railway_tool)
         log.info("Railway deploy tool registered")
     elif cfg.railway.enabled:
         log.info("Railway enabled in config but RAILWAY_TOKEN not set — disabled")
+
+    if sovereign is not None and cfg.engine.harness_enabled:
+        from palmtop.core.harness import SupervisorHarness, deploy_tool_view, operator_tool_view, writer_tool_view
+
+        sovereign.harness = SupervisorHarness(
+            llm=engine_llm,
+            aligner=goal_aligner,
+            tools=operator_tool_view(tools),
+            writer_tools=writer_tool_view(tools),
+            deploy_tools=deploy_tool_view(tools),
+            cursor=cursor_manager,
+            blessing_gate=blessing_gate,
+            data_dir=cfg.data_dir,
+            max_children=cfg.engine.max_children,
+            max_parallel_research=cfg.engine.max_parallel_research,
+        )
+        log.info(
+            "Supervisor harness enabled (max_children=%d, max_parallel_research=%d)",
+            cfg.engine.max_children,
+            cfg.engine.max_parallel_research,
+        )
 
     agent = AgentLoop(
         local_backend,
@@ -491,6 +527,7 @@ def main() -> None:
         Stores init in parallel (no dependencies between them).
         API auth checks also run in parallel after stores are ready.
         """
+        install_worker_pool(cfg.profile.worker_pool)
         # Phase 1: all DB stores + calendar creds in parallel
         results = await asyncio.gather(
             conv_memory.init(),
@@ -565,7 +602,7 @@ def main() -> None:
                 if cfg.voice.enabled:
                     from palmtop.voice.stt import create_stt
 
-                    stt = create_stt(cfg.voice)
+                    stt = create_stt(cfg.voice, n_threads=cfg.inference.n_threads)
                     if cfg.voice.tts_enabled:
                         from palmtop.voice.tts import create_tts
 
@@ -838,7 +875,7 @@ def main() -> None:
         if cfg.voice.enabled:
             from palmtop.voice.stt import create_stt
 
-            stt = create_stt(cfg.voice)
+            stt = create_stt(cfg.voice, n_threads=cfg.inference.n_threads)
             if stt:
                 log.info("Voice STT enabled: %s", type(stt).__name__)
             else:

@@ -74,7 +74,7 @@ class GoalAligner:
 
     # ── Public API ────────────────────────────────────────────────────────────
 
-    def check_alignment(self, task: str) -> dict:
+    def check_alignment(self, task: str, *, heuristic_only: bool = False) -> dict:
         task = (task or "").strip()
         goals, load_status, source = self._load_goals()
         meta = {"goals_source": source}
@@ -109,7 +109,7 @@ class GoalAligner:
                 note=f"Heuristic match: {label}.",
             )
 
-        if self._use_semantic and self._judge is not None:
+        if not heuristic_only and self._use_semantic and self._judge is not None:
             verdict = self._judge.judge(task, goals)
             if verdict is None:
                 res = self._result(

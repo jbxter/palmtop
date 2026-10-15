@@ -87,9 +87,12 @@ enabled = true         # /health endpoint for Docker healthcheck + uptime monito
 
 [inference]
 model_path = "models/phi-3.5-mini-instruct-q4_k_m.gguf"
-n_ctx = 4096
+# n_ctx and n_threads are chosen from the machine at startup.
+# Uncomment to pin them. A phone stays at 4096 and 4 threads.
+# A host uses the CPU count, leaving one core free, and a context of 8192 at 16 GB.
+# n_ctx = 4096
 n_gpu_layers = -1   # -1 = offload all to GPU (Metal on Mac, Vulkan on phone)
-n_threads = 4
+# n_threads = 4
 
 # Cloud tiers — local model routes messages to the right tier automatically.
 # Set the env var for your provider (see below). With both Anthropic + Google:
