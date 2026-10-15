@@ -7,46 +7,38 @@ A self-hosted AI agent platform that runs on a phone — or anywhere.
 
 Built and battle-tested on a Galaxy S21 running Termux, deployed via Cloudflare Tunnel, handling real business operations 24/7 with zero cloud compute costs.
 
-## What is this?
+## What you can do
 
-Palmtop is a production-grade personal AI agent with:
+One process, one `data_dir`. Every private channel shares that agent: the same memory, the same tools, the same inference cascade.
 
-- **Cascading inference** — local llama.cpp model for routing, cloud LLMs (Anthropic, Google, OpenAI) for heavy lifting
-- **Multi-channel communication** — Telegram, SMS (via Termux:API), and web chat
-- **Tool integrations** — Jira, Google Calendar, email (AgentMail), web search, Vercel/Railway deploy
-- **Memory system** — conversation history, structured memory extraction, plans, knowledge base (all SQLite)
-- **MCP client/server** — connect to any Model Context Protocol server
-- **Voice** — speech-to-text (Gemini, Whisper, OpenAI) and text-to-speech
-- **Web presence** — landing page with chat widget, intake forms, blog engine, lead qualification
-- **Git-push deploy** — push to your device, auto-restart via post-receive hook
-- **Configurable persona** — name, personality, services, brand colors — all driven by `config.toml`
+**You, in a private channel.** Send a message. The agent answers with the local model or a cloud tier, keeps the thread, and can call a tool when that integration is configured. Memory is SQLite: conversation history per channel, facts and preferences it extracts, multi-step plans, and a knowledge base. On Telegram, a voice message is transcribed (Gemini, Whisper, or OpenAI) and the agent can reply with speech.
+
+**Channels that reach that agent.** Telegram, SMS (Termux), email, Discord, Slack, Matrix, IRC, WhatsApp, XMPP, and ScuttleBot. List them in `channels` — that is the only way those names start. A single `channel = "telegram"` or `channel = "sms"` still works; any other lone `channel` value falls through to Telegram. Each private channel except ScuttleBot refuses everyone until its allow-list is set (`allowed_users`, `allowed_numbers`, `allowed_jids`, or `allowed_senders`). `allow_anyone = true` is the explicit public switch, and it is logged at startup.
+
+**Tools you can ask for**, after the matching config is set: web search, Google Calendar, reminders, files under `data_dir/docs`, the knowledge base, AgentMail, Jira and Confluence, Vercel, Railway, Cursor, and any MCP server in `[[mcp.servers]]`.
+
+**Owner-only work.** Put your id in `[agent] owners`. An empty list refuses these commands on every channel. `/engine` or `/claude` on Telegram, and `engine:` / `claude:` on any channel, run a sovereign task. `/cursor` and `cursor:` send repo work to a Cursor Cloud Agent on an allowlisted repo. Deploy tools ask before they ship. Reply `/approve` or `/deny`. The operator steps are in [docs/delegation-workflow.md](docs/delegation-workflow.md).
+
+**A web visitor.** The site is a landing page, a blog, and an intake form. The chat widget talks to a sandboxed WebAgent: a cloud conversation with no tools and no memory. That visitor cannot reach the agent you message from Telegram.
+
+**ScuttleBot.** Add `"scuttlebot"` to `channels` and point `[scuttlebot]` at an IRC server. A mention or DM (`palmtop: …`, `@palmtop`, or a private message) runs the full agent as `scuttlebot:<nick>`. `!pause`, `!resume`, and `!status` work. There is no nick allow-list, so the IRC server itself has to be private. Tool calls are not streamed into the room.
+
+**Operate the process.** `python -m palmtop` accepts `backup`, `restore`, `export`, `import`, and `init`. Push to the phone's git remote to pull, restart the agent, and restart the tunnel. With `[admin]` enabled, `GET /health` listens on loopback.
 
 ## Architecture
 
 ```
-                    ┌─────────────┐
-                    │  Telegram   │
-                    │    Bot      │
-                    └──────┬──────┘
-                           │
-┌──────────┐        ┌──────┴──────┐        ┌──────────────┐
-│   SMS    ├────────┤  AgentLoop  ├────────┤  Tool        │
-│ (Termux) │        │  (core)     │        │  Registry    │
-└──────────┘        └──────┬──────┘        └──────┬───────┘
-                           │                      │
-┌──────────┐        ┌──────┴──────┐        ┌──────┴───────┐
-│ Web Chat ├────────┤  Inference  │        │ Calendar     │
-│ (public) │        │  Cascade    │        │ Email        │
-└──────────┘        └─────────────┘        │ Jira         │
-                    local → light → heavy  │ Search       │
-                                           │ Deploy       │
-                    Security boundary:     │ Files        │
-                    Web visitors get a     │ Knowledge    │
-                    sandboxed WebAgent     │ MCP Gateway  │
-                    with NO tool access    └──────────────┘
-```
+Private channels                 AgentLoop                    Optional tools
+telegram, sms, email,            local model                  search, calendar,
+discord, slack, matrix,    ───>  then cloud.light        ───> reminders, files,
+irc, whatsapp, xmpp,             then cloud.heavy             knowledge, email,
+scuttlebot                       one shared data_dir          jira, vercel, railway,
+                                                              cursor, MCP
 
-**Security**: Web visitors interact with a sandboxed `WebAgent` that has access to a cloud LLM for conversation only. It has zero access to tools, memory, or any internal systems.
+Public web, not on that loop
+landing page, blog, intake form
+WebAgent: conversation only — no tools, no memory
+```
 
 ## Quickstart
 
@@ -150,59 +142,25 @@ n_gpu_layers = -1   # -1 = all layers on GPU
 # provider = "anthropic"    # capable, expensive
 ```
 
+The local model routes the turn. Light and heavy run whatever provider those sections name. `config.example.toml` lists the accepted providers (Anthropic, Google, OpenAI, Groq, Together, Fireworks, DeepSeek, Mistral, OpenRouter, Ollama, Cohere).
+
 ### Channels
 
 ```toml
+channels = ["telegram", "sms"]
+
 [telegram]
 # Set TELEGRAM_BOT_TOKEN env var
+# allowed_users = [123456789]   # empty = refuse everyone
 
 [sms]
 enabled = false
 allowed_numbers = ["+15551234567"]
 ```
 
+Discord, Slack, Matrix, IRC, WhatsApp, XMPP, email, and ScuttleBot belong in that `channels` list, each with its own allow-list. ScuttleBot has no nick allow-list.
+
 See `config.example.toml` for the full reference with all options documented.
-
-## Features
-
-### Inference cascade
-
-Messages are routed through a cascade: local model (fast, free) → cloud light tier (Gemini Flash) → cloud heavy tier (Claude Sonnet). The local model handles simple messages and routes complex ones to the appropriate cloud tier.
-
-### Memory system
-
-- **Conversation memory**: Full chat history per channel, stored in SQLite
-- **Structured memory**: The agent extracts facts, preferences, and relationships from conversations
-- **Plans**: Track multi-step plans with status updates
-- **Knowledge base**: Persistent key-value store for reference information
-
-### Tool integrations
-
-All tools are optional — configure only what you need:
-
-| Tool | Config key | What it does |
-|------|-----------|--------------|
-| Web search | `[search]` | Brave → Serper → DuckDuckGo fallback chain |
-| Google Calendar | automatic | Read/write events (OAuth) |
-| Email | `[email]` | Send/receive via AgentMail |
-| Jira + Confluence | `[atlassian]` | Search, create, update issues and wiki pages |
-| Vercel | `[vercel]` | Deploy projects |
-| Railway | `[railway]` | Redeploy services |
-| Cursor | `[cursor]` | Delegate coding tasks to Cursor Cloud Agents |
-| MCP servers | `[[mcp.servers]]` | Connect to any MCP-compatible server |
-
-### Web presence
-
-The built-in web server provides:
-- **Landing page** with configurable persona
-- **Chat widget** — visitors talk to a sandboxed WebAgent
-- **Intake form** — collects leads, notifies you on Telegram
-- **Blog engine** — zero-dependency markdown-to-HTML
-- **Lead outreach** — auto-qualifies leads and sends branded follow-up emails
-
-### Voice
-
-Telegram voice messages are automatically transcribed (Gemini, Whisper, or OpenAI) and the agent can reply with synthesized speech.
 
 ## Project structure
 
@@ -217,15 +175,11 @@ src/palmtop/
 │   ├── engine.py        # Sovereign engine (autonomous tasks)
 │   ├── blessing.py      # Human-in-the-loop approval gate
 │   ├── goal_aligner.py  # 12-Week-Year goal alignment
-│   ├── monitor.py       # Proactive monitoring
 │   └── tracing.py       # Observability (SQLite/Langfuse)
 ├── inference/
 │   ├── local.py         # llama.cpp backend
 │   └── cloud.py         # Anthropic/Google/OpenAI backends
-├── channels/
-│   ├── telegram.py      # Telegram bot
-│   ├── sms.py           # Termux SMS
-│   └── sms_listener.py  # Dual-channel SMS listener
+├── channels/            # One module per private channel listed above
 ├── tools/               # Calendar, email, Jira, search, deploy...
 ├── memory/              # Conversation, structured, plans
 ├── knowledge/           # SQLite knowledge base
