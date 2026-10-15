@@ -308,9 +308,7 @@ owners = []
 
 # Sovereign engine — the agent can trigger it from chat (owners only):
 #   /engine draft poster copy        (Telegram)
-#   /claude draft poster copy        (Telegram alias — same as /engine)
-#   engine: draft poster copy        (Telegram or SMS)
-#   claude: draft poster copy        (alias)
+#   engine: draft poster copy        (any channel)
 # Headless CLI (no interactive channel) — autonomous is below the safety floor,
 # so the operator must opt in (see .env.example "Safety floor"):
 #   PALMTOP_ALLOW_AUTONOMOUS=1 PALMTOP_AUTONOMOUS=1 uv run python -m palmtop.engine --task "your task"

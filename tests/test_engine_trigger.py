@@ -18,8 +18,8 @@ def test_parse_engine_task_prefixes() -> None:
     assert parse_engine_task("engine: ship product milestone") == "ship product milestone"
     assert parse_engine_task("engine run weekly review") == "run weekly review"
     assert parse_engine_task("/engine draft copy") == "draft copy"
-    assert parse_engine_task("/claude draft copy") == "draft copy"
-    assert parse_engine_task("claude: summarize inbox") == "summarize inbox"
+    assert parse_engine_task("/claude draft copy") is None
+    assert parse_engine_task("claude: summarize inbox") is None
     assert parse_engine_task("hello julian") is None
 
 

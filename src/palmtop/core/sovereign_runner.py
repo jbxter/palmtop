@@ -20,14 +20,13 @@ log = logging.getLogger(__name__)
 
 # Message prefixes that route a turn to the sovereign engine. Colon forms are
 # checked before bare-space forms so "engine: x" strips the colon, not " engine".
-_ENGINE_PREFIXES = ("/engine ", "/claude ", "engine:", "claude:", "engine ", "claude ")
+_ENGINE_PREFIXES = ("/engine ", "engine:", "engine ")
 
 
 def parse_engine_task(text: str) -> str | None:
     """Return the task body if the message triggers the engine, else None.
 
-    Triggers: ``/engine <task>``, ``engine <task>``, ``engine: <task>`` and the
-    ``/claude`` / ``claude`` / ``claude:`` aliases.
+    Triggers: ``/engine <task>``, ``engine <task>``, and ``engine: <task>``.
     """
     raw = (text or "").strip()
     if not raw:

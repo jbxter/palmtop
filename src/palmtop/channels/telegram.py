@@ -221,7 +221,6 @@ class TelegramChannel:
         # this, the sequential update queue starves the approval handler.
         self._app = Application.builder().token(bot_token).concurrent_updates(True).build()
         self._app.add_handler(CommandHandler("engine", self._on_engine))
-        self._app.add_handler(CommandHandler("claude", self._on_engine))
         self._app.add_handler(CommandHandler("cursor", self._on_cursor))
         self._app.add_handler(CommandHandler("voice", self._on_voice_toggle))
         self._app.add_handler(CommandHandler("approve", self._on_approve))

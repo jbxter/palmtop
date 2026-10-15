@@ -133,7 +133,7 @@ class AgentLoop:
             )
         task = task.strip()
         if not task:
-            return "Usage: /engine <task>  or  engine: <task>  (alias: /claude, claude:)"
+            return "Usage: /engine <task>  or  engine: <task>"
         return await run_sovereign_engine(
             self._sovereign,
             task,

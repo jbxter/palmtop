@@ -17,7 +17,7 @@ One process, one `data_dir`. Every private channel shares that agent: the same m
 
 **Tools you can ask for**, after the matching config is set: web search, Google Calendar, reminders, files under `data_dir/docs`, the knowledge base, AgentMail, Jira and Confluence, Vercel, Railway, Cursor, and any MCP server in `[[mcp.servers]]`.
 
-**Owner-only work.** Put your id in `[agent] owners`. An empty list refuses these commands on every channel. `/engine` or `/claude` on Telegram, and `engine:` / `claude:` on any channel, run a sovereign task. `/cursor` and `cursor:` send repo work to a Cursor Cloud Agent on an allowlisted repo. Deploy tools ask before they ship. Reply `/approve` or `/deny`. The operator steps are in [docs/delegation-workflow.md](docs/delegation-workflow.md).
+**Owner-only work.** Put your id in `[agent] owners`. An empty list refuses these commands on every channel. `/engine` on Telegram, and `engine:` on any channel, run a sovereign task on the configured cloud tier. `/cursor` and `cursor:` send repo work to a Cursor Cloud Agent on an allowlisted repo. Deploy tools ask before they ship. Reply `/approve` or `/deny`. The operator steps are in [docs/delegation-workflow.md](docs/delegation-workflow.md).
 
 **A web visitor.** The site is a landing page, a blog, and an intake form. The chat widget talks to a sandboxed WebAgent: a cloud conversation with no tools and no memory. That visitor cannot reach the agent you message from Telegram.
 

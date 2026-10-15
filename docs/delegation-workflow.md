@@ -1,18 +1,16 @@
 # Julian delegation workflow (operator runbook)
 
-Julian (palmtop on the S21) can delegate work through three paths: **chat** (local + tools), **sovereign engine** (Claude/Gemini cloud orchestration), and **Cursor Cloud Agents** (repo VMs). Deploy tools add **Vercel** and **Railway** for shipping web apps.
+Julian (palmtop on the S21) can delegate work through three paths: **chat** (local + tools), **sovereign engine** (the configured cloud tier), and **Cursor Cloud Agents** (repo VMs). Deploy tools add **Vercel** and **Railway** for shipping web apps.
 
 ## Quick reference
 
 | Path | Trigger (Telegram) | Trigger (SMS) | Best for |
 |------|-------------------|---------------|----------|
 | Chat + tools | normal message | normal message | Calendar, Jira, search, `[TOOL:…]` |
-| Sovereign engine | `/engine …` or `/claude …` | `engine: …` | Multi-step autonomous tasks, alignment gate |
+| Sovereign engine | `/engine …` | `engine: …` | Multi-step autonomous tasks, alignment gate |
 | Cursor bridge | `/cursor …` | `cursor: …` | Code changes on allowed GitHub repos |
 | Vercel deploy | `[TOOL:vercel] deploy` | same | Production/preview deploy of linked project |
 | Railway deploy | `[TOOL:railway] deploy` | same | Redeploy configured Railway service |
-
-`/claude` is an alias for `/engine` (same handler, same sovereign runner).
 
 ## Environment checklist (S21)
 
@@ -56,7 +54,7 @@ Run: `uv sync --extra telegram` on the phone, then `uv run python -m palmtop`.
 
 **Chat** — Default loop. Julian replies with local/cloud LLM, can emit `[TOOL:name] query`. Use for interactive Q&A, Jira lookups, reminders, file notes.
 
-**Engine** (`/engine`, `/claude`, `engine:`, `claude:`) — Runs `PalmtopAgent.orchestrate_result` in a worker thread: 12WY alignment, optional **blessing** (`/approve` / `/deny`), autonomous tool use. Use when you want Julian to *execute* a goal, not just advise.
+**Engine** (`/engine`, `engine:`) — Runs `PalmtopAgent.orchestrate_result` in a worker thread on the configured cloud tier: 12WY alignment, optional **blessing** (`/approve` / `/deny`), autonomous tool use. Use when you want Julian to *execute* a goal, not just advise.
 
 **Cursor** (`/cursor`, `cursor:`, `[TOOL:cursor]`) — Starts a Cursor Cloud Agent on an **allowlisted** repo. Polls until finished; notifies on Telegram. Requires `CURSOR_API_KEY` and `[cursor] allowed_repos`. Blessing gate mirrors engine when `require_blessing = true`.
 
@@ -130,10 +128,9 @@ Commands:
 
 1. Start agent with `config.toml` and allowed user ID in `[telegram] allowed_users`.
 2. `/engine say hello` — expect sovereign engine reply (or blocked if misaligned in hard mode).
-3. `/claude list open questions` — same path as engine.
-4. `/cursor fix typo in README` — expect launch message + later completion (if Cursor configured).
-5. `[TOOL:vercel] status` / `[TOOL:railway] status` — expect connected message.
-6. `/approve` / `/deny` only when a pending approval message is shown.
+3. `/cursor fix typo in README` — expect launch message + later completion (if Cursor configured).
+4. `[TOOL:vercel] status` / `[TOOL:railway] status` — expect connected message.
+5. `/approve` / `/deny` only when a pending approval message is shown.
 
 ## Logs and audit
 
