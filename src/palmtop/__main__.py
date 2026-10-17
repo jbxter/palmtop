@@ -86,19 +86,50 @@ class _SmsChannelAdapter:
         await self._listener.send(number, text)
 
 
+def _run_vault_command(cmd: str) -> None:
+    """Push or pull the knowledge base against a local markdown vault."""
+    from palmtop.knowledge.store import KnowledgeBase
+    from palmtop.knowledge.vault import VaultError, format_result, vault_pull, vault_push
+
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
+    cfg = Config.load(Path("config.toml"))
+
+    async def _go() -> None:
+        kb = KnowledgeBase(cfg.data_dir / "knowledge.db")
+        await kb.init()
+        try:
+            if cmd == "vault-push":
+                result = await vault_push(kb, cfg.vault, cfg.data_dir)
+            else:
+                result = await vault_pull(kb, cfg.vault, cfg.data_dir)
+        finally:
+            await kb.close()
+        print(format_result(result))
+
+    try:
+        asyncio.run(_go())
+    except VaultError as exc:
+        print(exc)
+        raise SystemExit(1) from exc
+
+
 def _handle_subcommand() -> bool:
     """Handle CLI subcommands (backup, restore, export, import, init). Returns True if handled."""
     if len(sys.argv) < 2:
         return False
 
     cmd = sys.argv[1]
-    if cmd not in ("backup", "restore", "export", "import", "init"):
+    if cmd not in ("backup", "restore", "export", "import", "init", "vault-push", "vault-pull"):
         return False
 
     if cmd == "init":
         from palmtop.secrets import init_secrets
 
         init_secrets()
+        return True
+
+    if cmd in ("vault-push", "vault-pull"):
+        _run_vault_command(cmd)
         return True
 
     from palmtop.backup import create_backup, export_json, import_json, restore_backup
