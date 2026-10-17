@@ -118,6 +118,10 @@ def _run_facts_command() -> None:
     try:
         asyncio.run(_go())
     except FactLogError as exc:
+        print(exc)
+        raise SystemExit(1) from exc
+
+
 def _run_vault_command(cmd: str) -> None:
     """Push or pull the knowledge base against a local markdown vault."""
     from palmtop.knowledge.store import KnowledgeBase

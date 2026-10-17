@@ -285,6 +285,9 @@ class FactLogConfig:
 
     max_bytes: int = 33_554_432
     peers: list[str] = field(default_factory=list)
+
+
+@dataclass
 class VaultConfig:
     """Local markdown vault mirror for the knowledge base (issue #54).
 
