@@ -267,6 +267,17 @@ enabled = true
 backend = "sqlite"     # "sqlite" (zero deps, traces.db) or "langfuse" (cloud)
 # Langfuse needs: LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_BASE_URL
 
+# Knowledge vault — mirror knowledge.db to a folder of markdown notes.
+# Files are plaintext on disk, outside the encrypted backup (PALMTOP_DB_KEY).
+# Leave enabled false unless that tradeoff is intentional.
+# [knowledge.vault]
+# enabled = false
+# flavor = "plain"          # "plain" | "obsidian" | "logseq"
+# path = "~/Notes"
+# subfolder = "Palmtop"
+# direction = "two-way"     # "push" | "pull" | "two-way"
+# conflict = "newest-wins"  # "newest-wins" | "vault-wins" | "kb-wins"
+
 [budget]
 # Cloud-LLM spend circuit-breaker. Approximate tokens (input+output, estimated)
 # per UTC day before cloud calls are refused (fail closed) — bounds runaway
