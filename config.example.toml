@@ -274,6 +274,9 @@ backend = "sqlite"     # "sqlite" (zero deps, traces.db) or "langfuse" (cloud)
 # [facts]
 # max_bytes = 33554432
 # peers = []
+# max_bytes caps the open facts.jsonl. The next line that would pass it closes
+# that file as facts-N.jsonl and records it in facts_index.jsonl. A line that
+# cannot fit in an empty file is refused. Nothing already written is deleted.
 # Knowledge vault — mirror knowledge.db to a folder of markdown notes.
 # Files are plaintext on disk, outside the encrypted backup (PALMTOP_DB_KEY).
 # Leave enabled false unless that tradeoff is intentional.
