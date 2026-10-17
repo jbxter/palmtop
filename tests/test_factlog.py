@@ -197,6 +197,62 @@ async def test_backup_round_trip_includes_log(tmp_path: Path, signing_key: str, 
     monkeypatch.delenv("PALMTOP_DB_KEY", raising=False)
 
 
+@pytest.mark.asyncio
+async def test_forget_stays_hidden_after_replay_and_import(tmp_path: Path, signing_key: str, monkeypatch) -> None:
+    mem = await _memory(tmp_path / "a")
+    row_id = await mem.store("user", "fact", "secret")
+    await mem.forget(row_id)
+    assert await mem.recall("user") == []
+    assert await mem.search("user", "secret") == []
+    FactLog(tmp_path / "a").verify()
+    await mem.close()
+
+    replayed = await _memory(tmp_path / "a")
+    assert await replayed.recall("user") == []
+    exported = await replayed.export_facts(tmp_path / "copy.json")
+    await replayed.close()
+
+    monkeypatch.setenv("PALMTOP_FACT_SIGNING_KEY", _seed())
+    dest = await _memory(tmp_path / "b", peers=[_public(signing_key)])
+    await dest.import_facts(exported)
+    assert await dest.recall("user") == []
+    FactLog(tmp_path / "b").verify()
+    await dest.close()
+
+
+@pytest.mark.asyncio
+async def test_rotation_closes_an_epoch_and_keeps_recall(
+    tmp_path: Path, signing_key: str, monkeypatch
+) -> None:
+    mem = await _memory(tmp_path)
+    await mem.store("user", "fact", "first")
+    mem._log.max_bytes = (tmp_path / LOG_NAME).stat().st_size * 2 - 1
+    await mem.store("user", "fact", "second")
+    closed = (tmp_path / "facts-1.jsonl").read_text(encoding="utf-8")
+    opened = (tmp_path / LOG_NAME).read_text(encoding="utf-8")
+    assert "first" in closed and "second" not in closed
+    assert "second" in opened and "first" not in opened
+    assert {item.content for item in await mem.recall("user")} == {"first", "second"}
+    digest = mem.index_hash()
+    FactLog(tmp_path).verify()
+    await mem.close()
+
+    replayed = await _memory(tmp_path)
+    assert {item.content for item in await replayed.recall("user")} == {"first", "second"}
+    assert replayed.index_hash() == digest
+    exported = await replayed.export_facts(tmp_path / "epochs.json")
+    archive = create_backup(tmp_path, tmp_path / "backups")
+    await replayed.close()
+
+    restore_backup(archive, tmp_path / "restored")
+    assert "first" in (tmp_path / "restored" / "facts-1.jsonl").read_text(encoding="utf-8")
+    monkeypatch.setenv("PALMTOP_FACT_SIGNING_KEY", _seed())
+    dest = await _memory(tmp_path / "b", peers=[_public(signing_key)])
+    await dest.import_facts(exported)
+    assert {item.content for item in await dest.recall("user")} == {"first", "second"}
+    await dest.close()
+
+
 def test_facts_config(tmp_path: Path) -> None:
     path = tmp_path / "config.toml"
     path.write_text('[facts]\nmax_bytes = 100\npeers = ["abc"]\n', encoding="utf-8")

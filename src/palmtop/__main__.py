@@ -92,8 +92,8 @@ def _run_facts_command() -> None:
     from palmtop.memory.structured import StructuredMemory
 
     logging.basicConfig(level=logging.INFO, format="%(message)s")
-    if len(sys.argv) < 3 or sys.argv[2] not in ("export", "import"):
-        print("Usage: palmtop facts export [path] | palmtop facts import <file>")
+    if len(sys.argv) < 3 or sys.argv[2] not in ("export", "import", "epoch"):
+        print("Usage: palmtop facts export [path] | palmtop facts import <file> | palmtop facts epoch")
         raise SystemExit(1)
     action = sys.argv[2]
     cfg = Config.load(Path("config.toml"))
@@ -102,7 +102,9 @@ def _run_facts_command() -> None:
         memory = StructuredMemory(cfg.data_dir / "memories.db", peers=cfg.facts.peers, max_bytes=cfg.facts.max_bytes)
         await memory.init()
         try:
-            if action == "export":
+            if action == "epoch":
+                print(memory.index_hash())
+            elif action == "export":
                 dest = Path(sys.argv[3]) if len(sys.argv) > 3 else cfg.data_dir / "facts-export.jsonl"
                 path = await memory.export_facts(dest)
                 print(f"Exported facts: {path}")

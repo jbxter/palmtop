@@ -141,6 +141,8 @@ class StructuredMemory:
             await self._db.execute("ALTER TABLE memories ADD COLUMN log_id TEXT NOT NULL DEFAULT ''")
         if "agent_id" not in names:
             await self._db.execute("ALTER TABLE memories ADD COLUMN agent_id TEXT NOT NULL DEFAULT ''")
+        if "retracted" not in names:
+            await self._db.execute("ALTER TABLE memories ADD COLUMN retracted INTEGER NOT NULL DEFAULT 0")
 
     async def store(self, user_id: str, category: str, content: str) -> int:
         if category not in CATEGORIES:
@@ -157,6 +159,9 @@ class StructuredMemory:
         return row_id
 
     async def _project(self, fact: Fact) -> int:
+        if fact.retracts:
+            await self._hide_log(fact.retracts)
+            return -1
         cursor = await self._db.execute(
             """INSERT INTO memories (user_id, category, content, created_at, log_id, agent_id)
                VALUES (?, ?, ?, ?, ?, ?)""",
@@ -207,6 +212,9 @@ class StructuredMemory:
         if rows:
             await self._db.commit()
 
+    def index_hash(self) -> str:
+        return self._require_log().index_hash()
+
     async def export_facts(self, dest: Path) -> Path:
         return self._require_log().export_file(dest)
 
@@ -219,6 +227,7 @@ class StructuredMemory:
         cursor = await self._db.execute(
             """SELECT 1 FROM memories
                WHERE user_id = ? AND category = ? AND content = ? AND agent_id = ?
+                 AND retracted = 0
                LIMIT 1""",
             (user_id, category, content, agent_id),
         )
@@ -243,14 +252,14 @@ class StructuredMemory:
         if category:
             cursor = await self._db.execute(
                 """SELECT id, user_id, category, content, created_at, agent_id, log_id
-                   FROM memories WHERE user_id = ? AND category = ?
+                   FROM memories WHERE user_id = ? AND category = ? AND retracted = 0
                    ORDER BY id DESC LIMIT ?""",
                 (user_id, category, limit),
             )
         else:
             cursor = await self._db.execute(
                 """SELECT id, user_id, category, content, created_at, agent_id, log_id
-                   FROM memories WHERE user_id = ?
+                   FROM memories WHERE user_id = ? AND retracted = 0
                    ORDER BY id DESC LIMIT ?""",
                 (user_id, limit),
             )
@@ -264,7 +273,7 @@ class StructuredMemory:
                     """SELECT m.id, m.user_id, m.category, m.content, m.created_at, m.agent_id, m.log_id
                        FROM memories m
                        JOIN memories_fts f ON m.id = f.rowid
-                       WHERE m.user_id = ? AND f.content MATCH ?
+                       WHERE m.user_id = ? AND m.retracted = 0 AND f.content MATCH ?
                        ORDER BY m.id DESC LIMIT ?""",
                     (user_id, query, limit),
                 )
@@ -275,14 +284,47 @@ class StructuredMemory:
                 log.debug("FTS search failed, falling back to LIKE", exc_info=True)
         cursor = await self._db.execute(
             """SELECT id, user_id, category, content, created_at, agent_id, log_id
-               FROM memories WHERE user_id = ? AND content LIKE ?
+               FROM memories WHERE user_id = ? AND retracted = 0 AND content LIKE ?
                ORDER BY id DESC LIMIT ?""",
             (user_id, f"%{query}%", limit),
         )
         return self._memories(await cursor.fetchall())
 
     async def forget(self, memory_id: int) -> None:
-        if self._has_fts:
+        """Append a signed retraction. The original log line stays so the chain still verifies."""
+        cursor = await self._db.execute(
+            "SELECT user_id, category, log_id, agent_id, retracted FROM memories WHERE id = ?",
+            (memory_id,),
+        )
+        row = await cursor.fetchone()
+        if not row or row[4]:
+            return
+        log_file = self._require_log()
+        log_id, agent_id = row[2] or "", row[3] or ""
+        if not log_id or agent_id != log_file.agent_id:
+            return
+        fact = log_file.append(row[0], row[1], "", retracts=log_id)
+        await self._project(fact)
+        log_file.mark_applied(fact)
+
+    async def correct(self, memory_id: int, content: str) -> int:
+        """Retract one fact and append its replacement. Both lines stay in the log."""
+        cursor = await self._db.execute(
+            "SELECT user_id, category FROM memories WHERE id = ? AND retracted = 0",
+            (memory_id,),
+        )
+        row = await cursor.fetchone()
+        if not row:
+            return -1
+        await self.forget(memory_id)
+        return await self.store(row[0], row[1], content)
+
+    async def _hide_log(self, log_id: str, memory_id: int | None = None) -> None:
+        if memory_id is None:
+            cursor = await self._db.execute("SELECT id FROM memories WHERE log_id = ?", (log_id,))
+            found = await cursor.fetchone()
+            memory_id = found[0] if found else None
+        if self._has_fts and memory_id is not None:
             try:
                 await self._db.execute(
                     "INSERT INTO memories_fts(memories_fts, rowid, content) "
@@ -291,7 +333,10 @@ class StructuredMemory:
                 )
             except Exception:
                 log.debug("FTS delete failed (non-fatal)", exc_info=True)
-        await self._db.execute("DELETE FROM memories WHERE id = ?", (memory_id,))
+        if log_id:
+            await self._db.execute("UPDATE memories SET retracted = 1 WHERE log_id = ?", (log_id,))
+        elif memory_id is not None:
+            await self._db.execute("UPDATE memories SET retracted = 1 WHERE id = ?", (memory_id,))
         await self._db.commit()
 
     async def close(self) -> None:
