@@ -23,7 +23,7 @@ One process, one `data_dir`. Every private channel shares that agent: the same m
 
 **ScuttleBot.** Add `"scuttlebot"` to `channels` and point `[scuttlebot]` at an IRC server. A mention or DM (`palmtop: …`, `@palmtop`, or a private message) runs the full agent as `scuttlebot:<nick>`. `!pause`, `!resume`, and `!status` work. There is no nick allow-list, so the IRC server itself has to be private. Tool calls are not streamed into the room.
 
-**Operate the process.** `python -m palmtop` accepts `backup`, `restore`, `export`, `import`, and `init`. Push to the phone's git remote to pull, restart the agent, and restart the tunnel. With `[admin]` enabled, `GET /health` listens on loopback.
+**Operate the process.** `python -m palmtop` accepts `backup`, `restore`, `export`, `import`, `facts` (`export`/`import`/`status`/`keygen` for the signed fact log), and `init`. Push to the phone's git remote to pull, restart the agent, and restart the tunnel. With `[admin]` enabled, `GET /health` listens on loopback.
 
 ## Architecture
 

@@ -274,6 +274,19 @@ backend = "sqlite"     # "sqlite" (zero deps, traces.db) or "langfuse" (cloud)
 # The owner is alerted once when the cap is hit.
 daily_token_cap = 5000000
 
+[facts]
+# Signed append-only fact log (data_dir/facts.jsonl). memories.db is rebuilt from it.
+# Operator-only: edit this file by hand. Chat cannot add a key, and the agent's file
+# tool cannot reach it. The signing key is NOT here — see PALMTOP_FACT_SIGNING_KEY in
+# .env.example (`palmtop init` generates it; or `palmtop facts keygen`).
+# Appends are refused (the owner is told) once the log reaches this size:
+max_log_bytes = 33554432
+# Public keys (hex, from `palmtop facts status`) of peer machines whose facts may enter
+# memory. Your own key is always allowed. Facts from other keys stay in the log marked
+# UNVERIFIED and never reach memory or the prompt. Allowed peer facts are fenced as
+# <untrusted-fact> data. Also settable via PALMTOP_FACT_ALLOWED_KEYS (comma-separated).
+allowed_keys = []
+
 [digest]
 enabled = true
 hour = 7          # 7:00 AM in your timezone

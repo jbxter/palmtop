@@ -11,6 +11,7 @@ dependencies = [
     "tomli>=2.0.0;python_version<'3.12'",
     "tomli-w>=1.0.0",
     "tzdata>=2024.1",
+    "cryptography>=42.0",  # Ed25519 signatures for the fact log (issue #55)
 ]
 
 [project.optional-dependencies]

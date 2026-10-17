@@ -52,6 +52,22 @@ def _check_dotenvx() -> str | None:
     return None
 
 
+def _ensure_fact_signing_key(env_path: Path, vault_path: Path) -> None:
+    """Add PALMTOP_FACT_SIGNING_KEY to a not-yet-encrypted .env (signed fact log, issue #55).
+
+    The key stays operator-held: it lives in .env/dotenvx, never under data_dir/docs.
+    """
+    from palmtop.memory.factlog import SIGNING_KEY_ENV, Signer
+
+    if vault_path.exists() or SIGNING_KEY_ENV in env_path.read_text():
+        return
+    signer, seed = Signer.generate()
+    with env_path.open("a") as f:
+        f.write(f"\n# Signs this agent's memory facts (keep private)\n{SIGNING_KEY_ENV}={seed}\n")
+    print(f"Added {SIGNING_KEY_ENV} to .env (public key: {signer.public_hex})")
+    print()
+
+
 def init_secrets() -> None:
     """Interactive setup: create .env from template and encrypt with dotenvx."""
     env_path = Path(".env")
@@ -93,6 +109,8 @@ def init_secrets() -> None:
     else:
         print(".env already exists")
         print()
+
+    _ensure_fact_signing_key(env_path, vault_path)
 
     # Step 3: Encrypt
     if vault_path.exists():

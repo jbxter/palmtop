@@ -13,6 +13,10 @@ All agent state lives in SQLite databases under data_dir/:
   - plans.db          (plans and goals)
   - knowledge.db      (knowledge base)
   - reminders.db      (scheduled reminders)
+plus facts.jsonl, the signed append-only fact log memories.db is projected from.
+
+    palmtop facts export [file]  # Write the signed fact log (for another machine)
+    palmtop facts import <file>  # Verify + append lines from an exported log
 """
 
 from __future__ import annotations
@@ -27,6 +31,8 @@ from datetime import UTC, datetime
 from io import BytesIO
 from pathlib import Path
 
+from palmtop.memory.factlog import FACT_LOG_FILE
+
 log = logging.getLogger(__name__)
 
 # Databases that make up the agent's full state
@@ -37,6 +43,10 @@ DB_FILES = [
     "knowledge.db",
     "reminders.db",
 ]
+
+# The signed fact log (issue #55) is backed up next to memories.db; it is the
+# source of truth that memories.db is projected from.
+BACKUP_FILES = [*DB_FILES, FACT_LOG_FILE]
 
 # Suffix marking an encrypted backup/export artifact (issue #48).
 ENC_SUFFIX = ".enc"
@@ -130,8 +140,9 @@ def create_backup(
 
     # Collect existing DB files
     db_files = [data_dir / name for name in DB_FILES if (data_dir / name).exists()]
+    log_file = data_dir / FACT_LOG_FILE
 
-    if not db_files:
+    if not db_files and not log_file.exists():
         raise FileNotFoundError(f"No database files found in {data_dir}")
 
     # Create safe SQLite copies (using backup API to avoid corruption)
@@ -142,6 +153,10 @@ def create_backup(
         for db_path in db_files:
             dst = tmp_dir / db_path.name
             _safe_copy_db(db_path, dst)
+        if log_file.exists():
+            # Whole lines only: an append may be in flight while we copy.
+            raw = log_file.read_bytes()
+            (tmp_dir / FACT_LOG_FILE).write_bytes(raw[: raw.rfind(b"\n") + 1])
 
         # Create tar.gz from the safe copies
         with tarfile.open(archive_path, "w:gz") as tar:
@@ -188,7 +203,7 @@ def restore_backup(archive_path: Path, data_dir: Path) -> list[str]:
         # Security: only extract known DB files
         filter_kwarg = {"filter": "data"} if hasattr(tarfile, "data_filter") else {}
         for member in tar.getmembers():
-            if member.name in DB_FILES:
+            if member.name in BACKUP_FILES:
                 tar.extract(member, path=data_dir, **filter_kwarg)
                 restored.append(member.name)
                 log.info("Restored: %s", member.name)
@@ -315,6 +330,27 @@ def import_json(json_path: Path, data_dir: Path) -> dict[str, int]:
 
     log.info("Import complete: %s", counts)
     return counts
+
+
+def export_facts(fact_log, output_path: Path | None = None) -> Path:
+    """Write the verified fact log to a file the owner can copy to another machine.
+
+    Refuses a broken log. Encrypted at rest like other exports when PALMTOP_DB_KEY is set (#48).
+    """
+    data = fact_log.export_bytes()  # verifies chains/signatures first
+    if output_path is None:
+        timestamp = datetime.now(tz=UTC).strftime("%Y%m%d_%H%M%S")
+        output_path = fact_log.path.parent / f"facts_export_{timestamp}.jsonl"
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_bytes(data)
+    return _encrypt_to(output_path)
+
+
+def import_facts(fact_log, path: Path):
+    """Append lines from an exported fact log: verify, then apply the allowlist (at projection)."""
+    if not path.exists():
+        raise FileNotFoundError(f"Import file not found: {path}")
+    return fact_log.import_bytes(_read_maybe_encrypted(path))
 
 
 def _safe_copy_db(src: Path, dst: Path) -> None:

@@ -284,6 +284,17 @@ class BudgetConfig:
 
 
 @dataclass
+class FactsConfig:
+    """Signed append-only fact log (issue #55). Operator-only: not writable from chat."""
+
+    # Appends are refused past this many bytes (nothing is dropped).
+    max_log_bytes: int = 32 * 1024 * 1024
+    # Hex Ed25519 public keys of peer machines whose facts may enter memory.
+    # The local agent's own key is always allowed; anything else stays unverified.
+    allowed_keys: list[str] = field(default_factory=list)
+
+
+@dataclass
 class CursorConfig:
     """Cursor Cloud Agents bridge — delegate repo work via API.
 
@@ -507,6 +518,7 @@ class Config:
     alignment: AlignmentConfig = field(default_factory=AlignmentConfig)
     engine: EngineConfig = field(default_factory=EngineConfig)
     budget: BudgetConfig = field(default_factory=BudgetConfig)
+    facts: FactsConfig = field(default_factory=FactsConfig)
     cursor: CursorConfig = field(default_factory=CursorConfig)
     vercel: VercelConfig = field(default_factory=VercelConfig)
     railway: RailwayConfig = field(default_factory=RailwayConfig)
@@ -656,6 +668,10 @@ class Config:
                 for k, v in raw["budget"].items():
                     if hasattr(cfg.budget, k):
                         setattr(cfg.budget, k, v)
+            if "facts" in raw:
+                for k, v in raw["facts"].items():
+                    if hasattr(cfg.facts, k):
+                        setattr(cfg.facts, k, v)
             if "cursor" in raw:
                 for k, v in raw["cursor"].items():
                     if hasattr(cfg.cursor, k):

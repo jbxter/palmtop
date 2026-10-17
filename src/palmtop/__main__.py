@@ -87,12 +87,12 @@ class _SmsChannelAdapter:
 
 
 def _handle_subcommand() -> bool:
-    """Handle CLI subcommands (backup, restore, export, import, init). Returns True if handled."""
+    """Handle CLI subcommands (backup, restore, export, import, facts, init). Returns True if handled."""
     if len(sys.argv) < 2:
         return False
 
     cmd = sys.argv[1]
-    if cmd not in ("backup", "restore", "export", "import", "init"):
+    if cmd not in ("backup", "restore", "export", "import", "facts", "init"):
         return False
 
     if cmd == "init":
@@ -100,6 +100,9 @@ def _handle_subcommand() -> bool:
 
         init_secrets()
         return True
+
+    if cmd == "facts":
+        return _handle_facts(sys.argv[2:])
 
     from palmtop.backup import create_backup, export_json, import_json, restore_backup
 
@@ -130,6 +133,61 @@ def _handle_subcommand() -> bool:
         counts = import_json(Path(sys.argv[2]), data_dir)
         print(f"Imported: {counts}")
 
+    return True
+
+
+def _handle_facts(args: list[str]) -> bool:
+    """`palmtop facts export|import|status|keygen` — the signed fact log (issue #55). No sockets."""
+    from palmtop.backup import export_facts, import_facts
+    from palmtop.memory.factlog import (
+        FACT_LOG_FILE,
+        FactLog,
+        FactLogError,
+        Signer,
+        load_signer,
+        normalize_allowed_keys,
+    )
+
+    sub = args[0] if args else ""
+    if sub == "keygen":
+        signer, seed = Signer.generate()
+        print(f"PALMTOP_FACT_SIGNING_KEY={seed}")
+        print(f"# public key (give this to peers' [facts] allowed_keys): {signer.public_hex}", file=sys.stderr)
+        return True
+    if sub not in ("export", "import", "status"):
+        print("Usage: palmtop facts export [file] | import <file> | status | keygen")
+        raise SystemExit(1)
+
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
+    cfg = Config.load(Path("config.toml"))
+    signer = load_signer(cfg.data_dir)
+    fact_log = FactLog(
+        cfg.data_dir / FACT_LOG_FILE,
+        signer,
+        allowed_keys=normalize_allowed_keys(cfg.facts.allowed_keys),
+        max_bytes=cfg.facts.max_log_bytes,
+    )
+    try:
+        if sub == "export":
+            path = export_facts(fact_log, Path(args[1]) if len(args) > 1 else None)
+            print(f"Exported fact log to: {path}")
+        elif sub == "import":
+            if len(args) < 2:
+                print("Usage: palmtop facts import <file>")
+                raise SystemExit(1)
+            res = import_facts(fact_log, Path(args[1]))
+            print(f"Imported {res.appended} lines ({res.skipped} already present, {res.unverified} unverified)")
+            if res.unverified:
+                print("Unverified lines are kept but never reach memory until the key is in [facts] allowed_keys.")
+        else:
+            print(f"Local agent: {signer.agent_id}  key: {signer.public_hex}")
+            print(f"Log: {fact_log.size()} / {fact_log.max_bytes} bytes")
+            for agent, w in fact_log.writers().items():
+                state = "allowed" if w["allowed"] else "UNVERIFIED"
+                print(f"  {agent}  {w['lines']} lines  {state}  key={w['key']}")
+    except FactLogError as e:
+        print(f"Refused: {e}")
+        raise SystemExit(1) from e
     return True
 
 
@@ -180,7 +238,15 @@ def main() -> None:
 
     # ── Create stores (sync constructors only — .init() deferred) ────
     conv_memory = ConversationMemory(cfg.data_dir / "conversations.db")
-    structured_memory = StructuredMemory(cfg.data_dir / "memories.db")
+    from palmtop.memory.factlog import FACT_LOG_FILE, FactLog, load_signer, normalize_allowed_keys
+
+    fact_log = FactLog(
+        cfg.data_dir / FACT_LOG_FILE,
+        load_signer(cfg.data_dir),
+        allowed_keys=normalize_allowed_keys(cfg.facts.allowed_keys),
+        max_bytes=cfg.facts.max_log_bytes,
+    )
+    structured_memory = StructuredMemory(cfg.data_dir / "memories.db", fact_log)
     plan_memory = PlanMemory(cfg.data_dir / "plans.db")
     calendar = GoogleCalendarTool(cfg.data_dir, timezone=cfg.timezone)
     reminders = ReminderTool(cfg.data_dir / "reminders.db", timezone=cfg.timezone)

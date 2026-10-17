@@ -1396,6 +1396,7 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "aiosqlite" },
+    { name = "cryptography" },
     { name = "httpx" },
     { name = "llama-cpp-python" },
     { name = "tomli", marker = "python_full_version < '3.12'" },
@@ -1460,6 +1461,7 @@ requires-dist = [
     { name = "aiosqlite", specifier = ">=0.20.0" },
     { name = "anthropic", marker = "extra == 'cloud'", specifier = ">=0.50.0" },
     { name = "atlassian-python-api", marker = "extra == 'atlassian'", specifier = ">=3.41.0" },
+    { name = "cryptography", specifier = ">=42.0" },
     { name = "cryptography", marker = "extra == 'dev'", specifier = ">=42.0" },
     { name = "cryptography", marker = "extra == 'encryption'", specifier = ">=42.0" },
     { name = "discord-py", marker = "extra == 'discord'", specifier = ">=2.3.0" },
