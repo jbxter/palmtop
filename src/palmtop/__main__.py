@@ -118,6 +118,29 @@ def _run_facts_command() -> None:
     try:
         asyncio.run(_go())
     except FactLogError as exc:
+def _run_vault_command(cmd: str) -> None:
+    """Push or pull the knowledge base against a local markdown vault."""
+    from palmtop.knowledge.store import KnowledgeBase
+    from palmtop.knowledge.vault import VaultError, format_result, vault_pull, vault_push
+
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
+    cfg = Config.load(Path("config.toml"))
+
+    async def _go() -> None:
+        kb = KnowledgeBase(cfg.data_dir / "knowledge.db")
+        await kb.init()
+        try:
+            if cmd == "vault-push":
+                result = await vault_push(kb, cfg.vault, cfg.data_dir)
+            else:
+                result = await vault_pull(kb, cfg.vault, cfg.data_dir)
+        finally:
+            await kb.close()
+        print(format_result(result))
+
+    try:
+        asyncio.run(_go())
+    except VaultError as exc:
         print(exc)
         raise SystemExit(1) from exc
 
@@ -128,7 +151,7 @@ def _handle_subcommand() -> bool:
         return False
 
     cmd = sys.argv[1]
-    if cmd not in ("backup", "restore", "export", "import", "init", "facts"):
+    if cmd not in ("backup", "restore", "export", "import", "init", "vault-push", "vault-pull", "facts"):
         return False
 
     if cmd == "init":
@@ -139,6 +162,8 @@ def _handle_subcommand() -> bool:
 
     if cmd == "facts":
         _run_facts_command()
+    if cmd in ("vault-push", "vault-pull"):
+        _run_vault_command(cmd)
         return True
 
     from palmtop.backup import create_backup, export_json, import_json, restore_backup

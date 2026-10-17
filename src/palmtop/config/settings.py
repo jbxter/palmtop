@@ -285,6 +285,20 @@ class FactLogConfig:
 
     max_bytes: int = 33_554_432
     peers: list[str] = field(default_factory=list)
+class VaultConfig:
+    """Local markdown vault mirror for the knowledge base (issue #54).
+
+    Vault files are plaintext on disk. They sit outside the encrypted backup
+    produced when PALMTOP_DB_KEY is set. Leave enabled false unless that
+    tradeoff is intentional.
+    """
+
+    enabled: bool = False
+    flavor: str = "plain"  # plain | obsidian | logseq
+    path: str = ""
+    subfolder: str = ""
+    direction: str = "two-way"  # push | pull | two-way
+    conflict: str = "newest-wins"  # newest-wins | vault-wins | kb-wins
 
 
 @dataclass
@@ -521,6 +535,7 @@ class Config:
     engine: EngineConfig = field(default_factory=EngineConfig)
     budget: BudgetConfig = field(default_factory=BudgetConfig)
     facts: FactLogConfig = field(default_factory=FactLogConfig)
+    vault: VaultConfig = field(default_factory=VaultConfig)
     cursor: CursorConfig = field(default_factory=CursorConfig)
     vercel: VercelConfig = field(default_factory=VercelConfig)
     railway: RailwayConfig = field(default_factory=RailwayConfig)
@@ -674,6 +689,10 @@ class Config:
                 for k, v in raw["facts"].items():
                     if hasattr(cfg.facts, k):
                         setattr(cfg.facts, k, v)
+            if "knowledge" in raw and isinstance(raw["knowledge"].get("vault"), dict):
+                for k, v in raw["knowledge"]["vault"].items():
+                    if hasattr(cfg.vault, k):
+                        setattr(cfg.vault, k, v)
             if "cursor" in raw:
                 for k, v in raw["cursor"].items():
                     if hasattr(cfg.cursor, k):

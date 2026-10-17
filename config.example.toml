@@ -274,6 +274,16 @@ backend = "sqlite"     # "sqlite" (zero deps, traces.db) or "langfuse" (cloud)
 # [facts]
 # max_bytes = 33554432
 # peers = []
+# Knowledge vault — mirror knowledge.db to a folder of markdown notes.
+# Files are plaintext on disk, outside the encrypted backup (PALMTOP_DB_KEY).
+# Leave enabled false unless that tradeoff is intentional.
+# [knowledge.vault]
+# enabled = false
+# flavor = "plain"          # "plain" | "obsidian" | "logseq"
+# path = "~/Notes"
+# subfolder = "Palmtop"
+# direction = "two-way"     # "push" | "pull" | "two-way"
+# conflict = "newest-wins"  # "newest-wins" | "vault-wins" | "kb-wins"
 
 [budget]
 # Cloud-LLM spend circuit-breaker. Approximate tokens (input+output, estimated)

@@ -80,11 +80,24 @@ class KnowledgeBase:
         await self._db.commit()
         log.info("Knowledge base ready: %s", self._db_path)
 
-    async def add(self, title: str, content: str, tags: str = "", source: str = "") -> int:
-        cursor = await self._db.execute(
-            "INSERT INTO entries (title, content, tags, source) VALUES (?, ?, ?, ?)",
-            (title.strip(), content.strip(), tags.strip(), source.strip()),
-        )
+    async def add(
+        self,
+        title: str,
+        content: str,
+        tags: str = "",
+        source: str = "",
+        created_at: str | None = None,
+    ) -> int:
+        if created_at:
+            cursor = await self._db.execute(
+                "INSERT INTO entries (title, content, tags, source, created_at) VALUES (?, ?, ?, ?, ?)",
+                (title.strip(), content.strip(), tags.strip(), source.strip(), created_at),
+            )
+        else:
+            cursor = await self._db.execute(
+                "INSERT INTO entries (title, content, tags, source) VALUES (?, ?, ?, ?)",
+                (title.strip(), content.strip(), tags.strip(), source.strip()),
+            )
         await self._db.commit()
         log.info("KB added #%d: %s", cursor.lastrowid, title[:60])
         return cursor.lastrowid
@@ -136,6 +149,11 @@ class KnowledgeBase:
         rows = await cursor.fetchall()
         return [KBEntry(*r) for r in rows]
 
+    async def list_all(self) -> list[KBEntry]:
+        cursor = await self._db.execute("SELECT id, title, content, tags, source, created_at FROM entries ORDER BY id")
+        rows = await cursor.fetchall()
+        return [KBEntry(*r) for r in rows]
+
     async def list_recent(self, limit: int = 20) -> list[KBEntry]:
         cursor = await self._db.execute(
             """SELECT id, title, content, tags, source, created_at
@@ -151,16 +169,18 @@ class KnowledgeBase:
         title: str | None = None,
         content: str | None = None,
         tags: str | None = None,
+        source: str | None = None,
     ) -> bool:
         entry = await self.get(entry_id)
         if not entry:
             return False
         await self._db.execute(
-            """UPDATE entries SET title = ?, content = ?, tags = ? WHERE id = ?""",
+            """UPDATE entries SET title = ?, content = ?, tags = ?, source = ? WHERE id = ?""",
             (
                 title.strip() if title else entry.title,
                 content.strip() if content else entry.content,
                 tags.strip() if tags else entry.tags,
+                source.strip() if source is not None else entry.source,
                 entry_id,
             ),
         )
