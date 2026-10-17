@@ -17,6 +17,7 @@ from palmtop.core.tracing import Tracer
 from palmtop.cursor.runner import parse_cursor_task
 from palmtop.inference.base import InferenceBackend, Message
 from palmtop.memory.conversation import ConversationMemory
+from palmtop.memory.factlog import FactLogCapError, format_memory_context
 from palmtop.memory.plans import (
     PLAN_INSTRUCTIONS,
     PlanMemory,
@@ -103,6 +104,7 @@ class AgentLoop:
         # Owners authorized for privileged engine:/cursor: commands. Channel-
         # qualified IDs (e.g. "telegram:123", "sms:+1555"). Empty = fail closed.
         self._owner_ids = owner_ids or set()
+        self._fact_cap_notified = False
 
         # Pre-build the static portion of the system prompt — tool instructions,
         # plan instructions, and extra system prompt never change between messages.
@@ -227,13 +229,13 @@ class AgentLoop:
 
                 if not relevant:
                     return ""
-                return "\n".join(f"[{m.category}] {m.content}" for m in relevant)
+                return format_memory_context(relevant, self._structured.local_agent_id)
 
         # No query — just fetch recent
         recent = await self._structured.recall(user_id, limit=30)
         if not recent:
             return ""
-        return "\n".join(f"[{m.category}] {m.content}" for m in recent)
+        return format_memory_context(recent, self._structured.local_agent_id)
 
     async def _extract_and_store(self, user_id: str, user_text: str, reply: str) -> None:
         if not self._structured:
@@ -244,9 +246,29 @@ class AgentLoop:
             raw = await extractor.complete([Message(role="user", content=prompt)], max_tokens=256)
             parsed = parse_extraction(raw)
             for category, content in parsed:
-                await self._structured.store(user_id, category, content)
+                try:
+                    await self._structured.store(user_id, category, content)
+                except FactLogCapError:
+                    await self._notify_fact_cap(user_id)
+                    break
         except Exception:
             log.exception("Memory extraction failed (non-fatal)")
+
+    async def _notify_fact_cap(self, user_id: str) -> None:
+        """Tell the owner once. Matches the cloud budget alert: no facts are dropped."""
+        if self._fact_cap_notified:
+            return
+        self._fact_cap_notified = True
+        text = "Fact log is full. New memories are paused until [facts] max_bytes is raised. Nothing was deleted."
+        log.error(text)
+        if not self._send_fn:
+            return
+        try:
+            result = self._send_fn(user_id, text)
+            if hasattr(result, "__await__"):
+                await result
+        except Exception:
+            log.debug("Fact log cap alert failed", exc_info=True)
 
     async def _process_plan_output(self, user_id: str, reply: str) -> None:
         if not self._plans:

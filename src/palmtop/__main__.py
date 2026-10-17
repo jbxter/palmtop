@@ -86,6 +86,42 @@ class _SmsChannelAdapter:
         await self._listener.send(number, text)
 
 
+def _run_facts_command() -> None:
+    """Export or import the signed fact log. There is no listener."""
+    from palmtop.memory.factlog import FactLogError
+    from palmtop.memory.structured import StructuredMemory
+
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
+    if len(sys.argv) < 3 or sys.argv[2] not in ("export", "import"):
+        print("Usage: palmtop facts export [path] | palmtop facts import <file>")
+        raise SystemExit(1)
+    action = sys.argv[2]
+    cfg = Config.load(Path("config.toml"))
+
+    async def _go() -> None:
+        memory = StructuredMemory(cfg.data_dir / "memories.db", peers=cfg.facts.peers, max_bytes=cfg.facts.max_bytes)
+        await memory.init()
+        try:
+            if action == "export":
+                dest = Path(sys.argv[3]) if len(sys.argv) > 3 else cfg.data_dir / "facts-export.jsonl"
+                path = await memory.export_facts(dest)
+                print(f"Exported facts: {path}")
+            else:
+                if len(sys.argv) < 4:
+                    print("Usage: palmtop facts import <file>")
+                    raise SystemExit(1)
+                added = await memory.import_facts(Path(sys.argv[3]))
+                print(f"Imported {added} fact lines")
+        finally:
+            await memory.close()
+
+    try:
+        asyncio.run(_go())
+    except FactLogError as exc:
+        print(exc)
+        raise SystemExit(1) from exc
+
+
 def _run_vault_command(cmd: str) -> None:
     """Push or pull the knowledge base against a local markdown vault."""
     from palmtop.knowledge.store import KnowledgeBase
@@ -119,7 +155,7 @@ def _handle_subcommand() -> bool:
         return False
 
     cmd = sys.argv[1]
-    if cmd not in ("backup", "restore", "export", "import", "init", "vault-push", "vault-pull"):
+    if cmd not in ("backup", "restore", "export", "import", "init", "vault-push", "vault-pull", "facts"):
         return False
 
     if cmd == "init":
@@ -128,6 +164,8 @@ def _handle_subcommand() -> bool:
         init_secrets()
         return True
 
+    if cmd == "facts":
+        _run_facts_command()
     if cmd in ("vault-push", "vault-pull"):
         _run_vault_command(cmd)
         return True
@@ -211,7 +249,11 @@ def main() -> None:
 
     # ── Create stores (sync constructors only — .init() deferred) ────
     conv_memory = ConversationMemory(cfg.data_dir / "conversations.db")
-    structured_memory = StructuredMemory(cfg.data_dir / "memories.db")
+    structured_memory = StructuredMemory(
+        cfg.data_dir / "memories.db",
+        peers=cfg.facts.peers,
+        max_bytes=cfg.facts.max_bytes,
+    )
     plan_memory = PlanMemory(cfg.data_dir / "plans.db")
     calendar = GoogleCalendarTool(cfg.data_dir, timezone=cfg.timezone)
     reminders = ReminderTool(cfg.data_dir / "reminders.db", timezone=cfg.timezone)

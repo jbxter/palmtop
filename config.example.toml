@@ -267,6 +267,13 @@ enabled = true
 backend = "sqlite"     # "sqlite" (zero deps, traces.db) or "langfuse" (cloud)
 # Langfuse needs: LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_BASE_URL
 
+# Signed fact log for structured memory. The private key is
+# PALMTOP_FACT_SIGNING_KEY (32-byte Ed25519 seed, hex), not this file.
+# peers are other agents' public keys, hex. Unlisted keys stay in the log
+# and are not searchable. Default cap is 32 MiB; store refuses past it.
+# [facts]
+# max_bytes = 33554432
+# peers = []
 # Knowledge vault — mirror knowledge.db to a folder of markdown notes.
 # Files are plaintext on disk, outside the encrypted backup (PALMTOP_DB_KEY).
 # Leave enabled false unless that tradeoff is intentional.
