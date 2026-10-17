@@ -6,7 +6,19 @@ from pathlib import Path
 
 import aiosqlite
 
+from palmtop.memory.factlog import DEFAULT_MAX_BYTES, Fact, FactLog, FactLogCapError, FactLogChainError
+
 log = logging.getLogger(__name__)
+
+__all__ = [
+    "CATEGORIES",
+    "EXTRACT_PROMPT",
+    "FactLogCapError",
+    "FactLogChainError",
+    "Memory",
+    "StructuredMemory",
+    "parse_extraction",
+]
 
 CATEGORIES = ("preference", "contact", "project", "fact")
 
@@ -48,12 +60,17 @@ class Memory:
     category: str
     content: str
     created_at: str
+    agent_id: str = ""
+    log_id: str = ""
 
 
 class StructuredMemory:
-    def __init__(self, db_path: Path) -> None:
+    def __init__(self, db_path: Path, *, peers: list[str] | None = None, max_bytes: int | None = None) -> None:
         self._db_path = db_path
         self._db: aiosqlite.Connection | None = None
+        self._peers = list(peers or [])
+        self._max_bytes = max_bytes
+        self._log: FactLog | None = None
 
     async def init(self) -> None:
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
@@ -90,86 +107,179 @@ class StructuredMemory:
             self._has_fts = False
         else:
             self._has_fts = True
+        await self._ensure_fact_columns()
         await self._db.commit()
+        self._log = FactLog(
+            self._db_path.parent,
+            peers=self._peers,
+            max_bytes=self._max_bytes if self._max_bytes is not None else DEFAULT_MAX_BYTES,
+        )
+        try:
+            self._log.verify()
+        except FactLogChainError:
+            log.error("Fact log failed verification: %s", self._log.broken)
+        else:
+            await self._import_legacy()
+            await self._replay()
         log.info("Structured memory ready: %s (fts=%s)", self._db_path, self._has_fts)
+
+    @property
+    def local_agent_id(self) -> str:
+        assert self._log is not None
+        return self._log.agent_id
+
+    def _require_log(self) -> FactLog:
+        assert self._log is not None
+        if self._log.broken:
+            raise FactLogChainError(self._log.broken)
+        return self._log
+
+    async def _ensure_fact_columns(self) -> None:
+        cursor = await self._db.execute("PRAGMA table_info(memories)")
+        names = {row[1] for row in await cursor.fetchall()}
+        if "log_id" not in names:
+            await self._db.execute("ALTER TABLE memories ADD COLUMN log_id TEXT NOT NULL DEFAULT ''")
+        if "agent_id" not in names:
+            await self._db.execute("ALTER TABLE memories ADD COLUMN agent_id TEXT NOT NULL DEFAULT ''")
 
     async def store(self, user_id: str, category: str, content: str) -> int:
         if category not in CATEGORIES:
             category = "fact"
         content = content.strip()
-        if await self._is_duplicate(user_id, category, content):
+        log_file = self._require_log()
+        if await self._is_duplicate(user_id, category, content, log_file.agent_id):
             log.debug("Skipping duplicate memory: %s", content[:60])
             return -1
+        fact = log_file.append(user_id, category, content)
+        row_id = await self._project(fact)
+        log_file.mark_applied(fact)
+        log.info("Stored %s memory: %s", category, content[:80])
+        return row_id
+
+    async def _project(self, fact: Fact) -> int:
         cursor = await self._db.execute(
-            "INSERT INTO memories (user_id, category, content) VALUES (?, ?, ?)",
-            (user_id, category, content),
+            """INSERT INTO memories (user_id, category, content, created_at, log_id, agent_id)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (fact.user_id, fact.category, fact.content, fact.ts, fact.id, fact.agent_id),
         )
         row_id = cursor.lastrowid
-        # Keep FTS index in sync
         if self._has_fts:
             try:
                 await self._db.execute(
                     "INSERT INTO memories_fts(rowid, content) VALUES (?, ?)",
-                    (row_id, content),
+                    (row_id, fact.content),
                 )
             except Exception:
                 log.debug("FTS insert failed (non-fatal)", exc_info=True)
         await self._db.commit()
-        log.info("Stored %s memory: %s", category, content[:80])
         return row_id
 
-    async def _is_duplicate(self, user_id: str, category: str, content: str) -> bool:
+    async def _applied_ids(self) -> set[str]:
+        cursor = await self._db.execute("SELECT log_id FROM memories WHERE log_id != ''")
+        return {row[0] for row in await cursor.fetchall()}
+
+    async def _replay(self) -> None:
+        assert self._log is not None
+        for fact in self._log.pending(await self._applied_ids()):
+            await self._project(fact)
+            self._log.mark_applied(fact)
+
+    async def _import_legacy(self) -> None:
+        assert self._log is not None and not self._log.broken
+        cursor = await self._db.execute(
+            """SELECT id, user_id, category, content, created_at FROM memories
+               WHERE log_id = '' OR log_id IS NULL"""
+        )
+        rows = await cursor.fetchall()
+        for row_id, user_id, category, content, created_at in rows:
+            fact = self._log.append(
+                user_id,
+                category,
+                content,
+                legacy=True,
+                ts=str(created_at or ""),
+            )
+            await self._db.execute(
+                "UPDATE memories SET log_id = ?, agent_id = ? WHERE id = ?",
+                (fact.id, fact.agent_id, row_id),
+            )
+            self._log.mark_applied(fact)
+        if rows:
+            await self._db.commit()
+
+    async def export_facts(self, dest: Path) -> Path:
+        return self._require_log().export_file(dest)
+
+    async def import_facts(self, src: Path) -> int:
+        added = self._require_log().import_file(src)
+        await self._replay()
+        return added
+
+    async def _is_duplicate(self, user_id: str, category: str, content: str, agent_id: str) -> bool:
         cursor = await self._db.execute(
             """SELECT 1 FROM memories
-               WHERE user_id = ? AND category = ? AND content = ?
+               WHERE user_id = ? AND category = ? AND content = ? AND agent_id = ?
                LIMIT 1""",
-            (user_id, category, content),
+            (user_id, category, content, agent_id),
         )
         return await cursor.fetchone() is not None
+
+    def _memories(self, rows) -> list[Memory]:
+        self._require_log()
+        return [
+            Memory(
+                id=r[0],
+                user_id=r[1],
+                category=r[2],
+                content=r[3],
+                created_at=str(r[4]),
+                agent_id=r[5] or "",
+                log_id=r[6] or "",
+            )
+            for r in rows
+        ]
 
     async def recall(self, user_id: str, category: str | None = None, limit: int = 50) -> list[Memory]:
         if category:
             cursor = await self._db.execute(
-                """SELECT id, user_id, category, content, created_at
+                """SELECT id, user_id, category, content, created_at, agent_id, log_id
                    FROM memories WHERE user_id = ? AND category = ?
                    ORDER BY id DESC LIMIT ?""",
                 (user_id, category, limit),
             )
         else:
             cursor = await self._db.execute(
-                """SELECT id, user_id, category, content, created_at
+                """SELECT id, user_id, category, content, created_at, agent_id, log_id
                    FROM memories WHERE user_id = ?
                    ORDER BY id DESC LIMIT ?""",
                 (user_id, limit),
             )
-        rows = await cursor.fetchall()
-        return [Memory(id=r[0], user_id=r[1], category=r[2], content=r[3], created_at=r[4]) for r in rows]
+        return self._memories(await cursor.fetchall())
 
     async def search(self, user_id: str, query: str, limit: int = 20) -> list[Memory]:
         if self._has_fts and query:
             # FTS5 MATCH is much faster than LIKE on large tables
             try:
                 cursor = await self._db.execute(
-                    """SELECT m.id, m.user_id, m.category, m.content, m.created_at
+                    """SELECT m.id, m.user_id, m.category, m.content, m.created_at, m.agent_id, m.log_id
                        FROM memories m
                        JOIN memories_fts f ON m.id = f.rowid
                        WHERE m.user_id = ? AND f.content MATCH ?
                        ORDER BY m.id DESC LIMIT ?""",
                     (user_id, query, limit),
                 )
-                rows = await cursor.fetchall()
-                return [Memory(id=r[0], user_id=r[1], category=r[2], content=r[3], created_at=r[4]) for r in rows]
+                return self._memories(await cursor.fetchall())
+            except FactLogChainError:
+                raise
             except Exception:
                 log.debug("FTS search failed, falling back to LIKE", exc_info=True)
-        # Fallback: LIKE search
         cursor = await self._db.execute(
-            """SELECT id, user_id, category, content, created_at
+            """SELECT id, user_id, category, content, created_at, agent_id, log_id
                FROM memories WHERE user_id = ? AND content LIKE ?
                ORDER BY id DESC LIMIT ?""",
             (user_id, f"%{query}%", limit),
         )
-        rows = await cursor.fetchall()
-        return [Memory(id=r[0], user_id=r[1], category=r[2], content=r[3], created_at=r[4]) for r in rows]
+        return self._memories(await cursor.fetchall())
 
     async def forget(self, memory_id: int) -> None:
         if self._has_fts:

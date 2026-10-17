@@ -37,6 +37,8 @@ DB_FILES = [
     "knowledge.db",
     "reminders.db",
 ]
+# Signed fact log. Copied beside the databases and encrypted with the archive.
+LOG_FILES = ["facts.jsonl"]
 
 # Suffix marking an encrypted backup/export artifact (issue #48).
 ENC_SUFFIX = ".enc"
@@ -128,10 +130,11 @@ def create_backup(
     archive_name = f"palmtop_backup_{timestamp}.tar.gz"
     archive_path = output_dir / archive_name
 
-    # Collect existing DB files
+    # Collect existing DB files and the fact log, when present.
     db_files = [data_dir / name for name in DB_FILES if (data_dir / name).exists()]
+    log_files = [data_dir / name for name in LOG_FILES if (data_dir / name).exists()]
 
-    if not db_files:
+    if not db_files and not log_files:
         raise FileNotFoundError(f"No database files found in {data_dir}")
 
     # Create safe SQLite copies (using backup API to avoid corruption)
@@ -142,6 +145,8 @@ def create_backup(
         for db_path in db_files:
             dst = tmp_dir / db_path.name
             _safe_copy_db(db_path, dst)
+        for log_path in log_files:
+            shutil.copy2(log_path, tmp_dir / log_path.name)
 
         # Create tar.gz from the safe copies
         with tarfile.open(archive_path, "w:gz") as tar:
@@ -187,8 +192,9 @@ def restore_backup(archive_path: Path, data_dir: Path) -> list[str]:
     with tarfile.open(fileobj=BytesIO(raw), mode="r:gz") as tar:
         # Security: only extract known DB files
         filter_kwarg = {"filter": "data"} if hasattr(tarfile, "data_filter") else {}
+        allowed = set(DB_FILES) | set(LOG_FILES)
         for member in tar.getmembers():
-            if member.name in DB_FILES:
+            if member.name in allowed:
                 tar.extract(member, path=data_dir, **filter_kwarg)
                 restored.append(member.name)
                 log.info("Restored: %s", member.name)

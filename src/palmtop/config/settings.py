@@ -275,6 +275,19 @@ class EngineConfig:
 
 
 @dataclass
+class FactLogConfig:
+    """Signed fact log for structured memory (issue #55).
+
+    The signing key is PALMTOP_FACT_SIGNING_KEY (32-byte Ed25519 seed), not a
+    config value. `peers` lists other public keys, as hex, that may contribute
+    facts. A chat command cannot add a key.
+    """
+
+    max_bytes: int = 33_554_432
+    peers: list[str] = field(default_factory=list)
+
+
+@dataclass
 class BudgetConfig:
     """Cloud-LLM spend circuit-breaker (issue #47)."""
 
@@ -507,6 +520,7 @@ class Config:
     alignment: AlignmentConfig = field(default_factory=AlignmentConfig)
     engine: EngineConfig = field(default_factory=EngineConfig)
     budget: BudgetConfig = field(default_factory=BudgetConfig)
+    facts: FactLogConfig = field(default_factory=FactLogConfig)
     cursor: CursorConfig = field(default_factory=CursorConfig)
     vercel: VercelConfig = field(default_factory=VercelConfig)
     railway: RailwayConfig = field(default_factory=RailwayConfig)
@@ -656,6 +670,10 @@ class Config:
                 for k, v in raw["budget"].items():
                     if hasattr(cfg.budget, k):
                         setattr(cfg.budget, k, v)
+            if "facts" in raw:
+                for k, v in raw["facts"].items():
+                    if hasattr(cfg.facts, k):
+                        setattr(cfg.facts, k, v)
             if "cursor" in raw:
                 for k, v in raw["cursor"].items():
                     if hasattr(cfg.cursor, k):
