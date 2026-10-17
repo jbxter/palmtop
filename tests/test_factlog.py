@@ -221,9 +221,7 @@ async def test_forget_stays_hidden_after_replay_and_import(tmp_path: Path, signi
 
 
 @pytest.mark.asyncio
-async def test_rotation_closes_an_epoch_and_keeps_recall(
-    tmp_path: Path, signing_key: str, monkeypatch
-) -> None:
+async def test_rotation_closes_an_epoch_and_keeps_recall(tmp_path: Path, signing_key: str, monkeypatch) -> None:
     mem = await _memory(tmp_path)
     await mem.store("user", "fact", "first")
     mem._log.max_bytes = (tmp_path / LOG_NAME).stat().st_size * 2 - 1
